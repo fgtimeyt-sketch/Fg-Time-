@@ -47,22 +47,24 @@ class MainActivity : ComponentActivity() {
                 } else {
                     // Back handler: return to Feed if on another screen
                     BackHandler(enabled = uiState.currentScreen != Screen.FEED) {
-                        if (uiState.currentScreen == Screen.STORY_VIEWER) {
-                            viewModel.navigateTo(Screen.FEED)
-                        } else {
-                            viewModel.navigateTo(Screen.FEED)
-                        }
+                        viewModel.navigateTo(Screen.FEED)
                     }
 
                     val showTopBar = uiState.currentScreen !in listOf(
                         Screen.STORY_VIEWER,
                         Screen.REELS,
-                        Screen.DIRECT_MESSAGES
+                        Screen.DIRECT_MESSAGES,
+                        Screen.CALL_SCREEN,
+                        Screen.AI_STUDIO,
+                        Screen.ADMIN_DASHBOARD
                     )
 
                     val showBottomBar = uiState.currentScreen !in listOf(
                         Screen.STORY_VIEWER,
-                        Screen.DIRECT_MESSAGES
+                        Screen.DIRECT_MESSAGES,
+                        Screen.CALL_SCREEN,
+                        Screen.AI_STUDIO,
+                        Screen.ADMIN_DASHBOARD
                     )
 
                     Scaffold(
@@ -102,6 +104,9 @@ class MainActivity : ComponentActivity() {
                                 Screen.PROFILE -> ProfileScreen(viewModel = viewModel)
                                 Screen.DIRECT_MESSAGES -> DirectMessagesScreen(viewModel = viewModel)
                                 Screen.STORY_VIEWER -> StoryViewerScreen(viewModel = viewModel)
+                                Screen.CALL_SCREEN -> CallScreen(viewModel = viewModel)
+                                Screen.AI_STUDIO -> AIStudioScreen(viewModel = viewModel)
+                                Screen.ADMIN_DASHBOARD -> AdminDashboardScreen(viewModel = viewModel)
                                 Screen.WELCOME_AUTH -> WelcomeAuthScreen(viewModel = viewModel)
                             }
                         }

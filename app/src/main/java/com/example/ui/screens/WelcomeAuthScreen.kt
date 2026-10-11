@@ -50,12 +50,15 @@ fun WelcomeAuthScreen(
     var fullName by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var contact by remember { mutableStateOf("") }
+    var dateOfBirth by remember { mutableStateOf("2001-08-15") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var agreedToTerms by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showTermsDialog by remember { mutableStateOf(false) }
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
+    var recoveryEmail by remember { mutableStateOf("") }
 
     val scrollState = rememberScrollState()
 
@@ -72,7 +75,8 @@ fun WelcomeAuthScreen(
             viewModel.performLogin(
                 name = fullName.ifBlank { "FG Member" },
                 username = username.ifBlank { "member_fg" },
-                contact = contact
+                contact = contact,
+                dob = dateOfBirth
             )
         } else {
             // Sign Up validation
@@ -104,7 +108,7 @@ fun WelcomeAuthScreen(
                     "Please accept the Terms of Service and Privacy Policy to continue."
                 return
             }
-            viewModel.performLogin(fullName, username, contact)
+            viewModel.performLogin(fullName, username, contact, dateOfBirth)
         }
     }
 
@@ -179,12 +183,12 @@ fun WelcomeAuthScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // FG TIME Leaf Logo Emblem
             Box(
                 modifier = Modifier
-                    .size(92.dp)
+                    .size(88.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
@@ -198,15 +202,15 @@ fun WelcomeAuthScreen(
                     painter = painterResource(id = R.drawable.fgtime_leaf_logo),
                     contentDescription = "FG TIME Logo",
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(70.dp)
                         .clip(CircleShape),
                     contentScale = ContentScale.Crop
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Brand Title
+            // Brand Title & Creator Note
             Text(
                 text = "FG TIME",
                 style = MaterialTheme.typography.headlineMedium.copy(
@@ -216,14 +220,25 @@ fun WelcomeAuthScreen(
                 color = if (uiState.isDarkMode) Color.White else FGGreenDark
             )
 
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Created by Muksidul",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = FGGreenSecondary,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Default.Verified, contentDescription = null, tint = FGGreenPrimary, modifier = Modifier.size(14.dp))
+            }
+
             Text(
-                text = if (isHindi) "सकारात्मक जुड़ाव और रचनात्मकता का मंच 🌿" else "Growth, Creativity & Connection 🌿",
-                style = MaterialTheme.typography.bodyMedium,
+                text = if (isHindi) "सकारात्मक जुड़ाव और रचनात्मकता का मंच 🌿" else "Growth, Creativity & Authentic Connection 🌿",
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Demo Mode Notice Banner
             Card(
@@ -237,28 +252,28 @@ fun WelcomeAuthScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.Info,
                         contentDescription = "Demo Mode",
                         tint = FGGreenPrimary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (isHindi)
-                            "डेमो मोड: स्थानीय सुरक्षित प्रोफ़ाइल बनाई जाएगी। सभी फ़ीचर पूरी तरह काम कर रहे हैं!"
+                            "डेमो मोड: स्थानीय सुरक्षित सत्र। सभी सामाजिक सुविधाएं, कॉल्स और रीमिक्स सक्रिय हैं।"
                         else
-                            "Interactive Demo: Full features enabled. Realistic local session profile will be created.",
+                            "Interactive Demo: Full audio/video calling, reels, remix studio, and AI features active.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Mode Selector Tabs (Sign Up vs Login)
             Row(
@@ -307,9 +322,9 @@ fun WelcomeAuthScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Error Message Banner (Dual Hindi / English feedback)
+            // Error Message Banner
             AnimatedVisibility(visible = errorMessage != null) {
                 errorMessage?.let { error ->
                     Card(
@@ -379,6 +394,23 @@ fun WelcomeAuthScreen(
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
+
+                // Date of Birth
+                OutlinedTextField(
+                    value = dateOfBirth,
+                    onValueChange = { dateOfBirth = it },
+                    label = { Text(if (isHindi) "जन्म तिथि (Date of Birth)" else "Date of Birth (YYYY-MM-DD)") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = FGGreenPrimary)
+                    },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("input_dob"),
+                    shape = RoundedCornerShape(14.dp)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
             }
 
             // Email or Phone
@@ -424,6 +456,27 @@ fun WelcomeAuthScreen(
                 shape = RoundedCornerShape(14.dp)
             )
 
+            if (isLoginMode) {
+                // Forgot Password link
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = if (isHindi) "पासवर्ड भूल गए? (Forgot Password)" else "Forgot Password?",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = FGGreenSecondary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable {
+                            recoveryEmail = contact
+                            showForgotPasswordDialog = true
+                        }
+                    )
+                }
+            }
+
             if (!isLoginMode) {
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -444,7 +497,7 @@ fun WelcomeAuthScreen(
                     shape = RoundedCornerShape(14.dp)
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Terms and Privacy Checkbox
                 Row(
@@ -471,14 +524,14 @@ fun WelcomeAuthScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             // Primary Action Button
             Button(
                 onClick = { validateAndSubmit() },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .height(50.dp)
                     .testTag("btn_auth_submit"),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = FGGreenPrimary,
@@ -503,9 +556,34 @@ fun WelcomeAuthScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Quick Guest Preview Button (for instant evaluation)
+            // Founder Review Button (Log in as Muksidul)
+            Button(
+                onClick = {
+                    viewModel.performLogin("Muksidul", "muksidul", "muksidul@fgtime.com")
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("btn_login_muksidul"),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = FGGreenPrimary
+                ),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = FGGreenPrimary, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Sign in as Creator Muksidul (Founder Access)",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Quick Guest Preview Button
             OutlinedButton(
                 onClick = {
                     viewModel.performLogin("Aarav Sharma", "aarav_fg", "aarav@fgtime.com")
@@ -514,10 +592,7 @@ fun WelcomeAuthScreen(
                     .fillMaxWidth()
                     .height(48.dp)
                     .testTag("btn_guest_preview"),
-                shape = RoundedCornerShape(14.dp),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.horizontalGradient(listOf(FGGreenPrimary, FGGreenSecondary))
-                )
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
@@ -527,7 +602,7 @@ fun WelcomeAuthScreen(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isHindi) "त्वरित डेमो पूर्वावलोकन (Guest Demo)" else "Quick Preview (Explore as Guest)",
+                    text = if (isHindi) "त्वरित डेमो पूर्वावलोकन (Guest Demo)" else "Explore as Guest Preview",
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -536,24 +611,42 @@ fun WelcomeAuthScreen(
             Spacer(modifier = Modifier.height(20.dp))
         }
 
-        // Terms of Service Dialog
-        if (showTermsDialog) {
+        // Forgot Password Dialog
+        if (showForgotPasswordDialog) {
             AlertDialog(
-                onDismissRequest = { showTermsDialog = false },
-                title = {
-                    Text("FG TIME Terms & Privacy", fontWeight = FontWeight.Bold)
-                },
+                onDismissRequest = { showForgotPasswordDialog = false },
+                title = { Text("Account Recovery & Password Reset", fontWeight = FontWeight.Bold) },
                 text = {
-                    Text(
-                        "1. Respectful Creative Community: All users agree to foster positive, growth-oriented interactions.\n\n" +
-                        "2. Privacy: Personal credentials and passwords are encrypted and never exposed in plain text.\n\n" +
-                        "3. Ownership: Creators retain full rights to their uploaded photos, videos, and music remixes.\n\n" +
-                        "4. Free-Tier Compliance: Features operate within zero-cost resource parameters."
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Enter your registered email address or phone number to receive a secure recovery verification code.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        OutlinedTextField(
+                            value = recoveryEmail,
+                            onValueChange = { recoveryEmail = it },
+                            label = { Text("Email or Phone") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 },
                 confirmButton = {
-                    TextButton(onClick = { showTermsDialog = false }) {
-                        Text("Close", color = FGGreenPrimary)
+                    Button(
+                        onClick = {
+                            if (recoveryEmail.isNotBlank()) {
+                                viewModel.recoverAccount(recoveryEmail)
+                                showForgotPasswordDialog = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = FGGreenPrimary)
+                    ) {
+                        Text("Send Reset Link", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showForgotPasswordDialog = false }) {
+                        Text("Cancel")
                     }
                 }
             )

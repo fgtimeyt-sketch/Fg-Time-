@@ -27,7 +27,9 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.theme.FGGreenPrimary
 import com.example.ui.theme.FGGreenSecondary
+import com.example.ui.theme.FGPurpleAccent
 import com.example.viewmodel.FGTimeViewModel
+import com.example.viewmodel.Screen
 
 @Composable
 fun ProfileScreen(
@@ -71,7 +73,10 @@ fun ProfileScreen(
                                 .clip(CircleShape)
                                 .background(
                                     Brush.sweepGradient(
-                                        listOf(FGGreenPrimary, FGGreenSecondary, Color.Transparent, FGGreenPrimary)
+                                        if (user.isOwner)
+                                            listOf(Color(0xFFFFD700), FGGreenPrimary, Color(0xFFFFD700))
+                                        else
+                                            listOf(FGGreenPrimary, FGGreenSecondary, Color.Transparent, FGGreenPrimary)
                                     )
                                 )
                                 .padding(3.dp),
@@ -110,12 +115,27 @@ fun ProfileScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Default.Eco,
-                            contentDescription = "Verified Leaf",
-                            tint = FGGreenPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        if (user.isOwner) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = FGGreenPrimary
+                            ) {
+                                Text(
+                                    text = "CREATOR & OWNER",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.Black,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Eco,
+                                contentDescription = "Verified Leaf",
+                                tint = FGGreenPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
 
                     Text(
@@ -167,6 +187,41 @@ fun ProfileScreen(
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("Share Profile", fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Admin Dashboard & AI studio shortcut buttons
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.navigateTo(Screen.AI_STUDIO) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = FGPurpleAccent.copy(alpha = 0.2f),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("AI Creator Studio", style = MaterialTheme.typography.labelMedium)
+                        }
+
+                        Button(
+                            onClick = { viewModel.navigateTo(Screen.ADMIN_DASHBOARD) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = FGGreenPrimary.copy(alpha = 0.2f),
+                                contentColor = FGGreenPrimary
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.AdminPanelSettings, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Admin Portal", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -265,7 +320,7 @@ fun ProfileScreen(
                                                 modifier = Modifier
                                                     .weight(1f)
                                                     .height(115.dp)
-                                                    .clip(RoundedCornerShape(6.dp))
+                                                .clip(RoundedCornerShape(6.dp))
                                             ) {
                                                 Image(
                                                     painter = painterResource(id = post.imageResId),
@@ -360,7 +415,7 @@ fun ProfileScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.performLogin(editedName, user.username, user.contact)
+                        viewModel.performLogin(editedName, user.username, user.contact, user.dateOfBirth)
                         showEditDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = FGGreenPrimary)

@@ -48,6 +48,12 @@ fun FeedScreen(
     val uiState by viewModel.uiState.collectAsState()
     var commentInput by remember { mutableStateOf("") }
 
+    // Dialog state for editing and reporting posts
+    var postToEdit by remember { mutableStateOf<Post?>(null) }
+    var editedContent by remember { mutableStateOf("") }
+    var postToReport by remember { mutableStateOf<Post?>(null) }
+    var reportReason by remember { mutableStateOf("Inappropriate or misleading content") }
+
     val activeCommentPostId = uiState.activePostCommentsPostId
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -109,13 +115,21 @@ fun FeedScreen(
 
             // Posts List
             items(uiState.posts, key = { it.id }) { post ->
+                val isMyPost = post.author.username == uiState.currentUser.username
                 PostCard(
                     post = post,
+                    isMyPost = isMyPost,
                     onLike = { viewModel.toggleLikePost(post.id) },
                     onSave = { viewModel.toggleSavePost(post.id) },
                     onComment = { viewModel.openCommentsFor(post.id) },
-                    onShare = {
-                        // Triggers state snackbar
+                    onShare = { /* share */ },
+                    onEdit = {
+                        postToEdit = post
+                        editedContent = post.content
+                    },
+                    onDelete = { viewModel.deletePost(post.id) },
+                    onReport = {
+                        postToReport = post
                     }
                 )
             }
@@ -134,7 +148,7 @@ fun FeedScreen(
             Icon(Icons.Default.Add, contentDescription = "Create Post")
         }
 
-        // Comments Bottom Sheet / Modal Dialog
+        // Comments Bottom Sheet
         if (activeCommentPostId != null) {
             val comments = uiState.commentsByPostId[activeCommentPostId] ?: emptyList()
             ModalBottomSheet(
@@ -251,6 +265,81 @@ fun FeedScreen(
                 }
             }
         }
+
+        // Edit Post Dialog
+        postToEdit?.let { post ->
+            AlertDialog(
+                onDismissRequest = { postToEdit = null },
+                title = { Text("Edit Post", fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = editedContent,
+                        onValueChange = { editedContent = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4,
+                        label = { Text("Caption") }
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.editPost(post.id, editedContent)
+                            postToEdit = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = FGGreenPrimary)
+                    ) {
+                        Text("Save", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { postToEdit = null }) { Text("Cancel") }
+                }
+            )
+        }
+
+        // Report Post Dialog
+        postToReport?.let { post ->
+            AlertDialog(
+                onDismissRequest = { postToReport = null },
+                title = { Text("Report Post to Moderators", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Help maintain a positive, safe atmosphere on FG TIME. Why are you reporting this?",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        val reasons = listOf("Spam or scam", "Harassment or hate speech", "Copyright violation", "Inappropriate content")
+                        reasons.forEach { r ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { reportReason = r }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = reportReason == r, onClick = { reportReason = r })
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(r, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.reportPost(post.id, reportReason)
+                            postToReport = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+                    ) {
+                        Text("Submit Report", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { postToReport = null }) { Text("Cancel") }
+                }
+            )
+        }
     }
 }
 
@@ -328,7 +417,10 @@ fun StoriesRow(
                         .clip(CircleShape)
                         .background(
                             Brush.sweepGradient(
-                                listOf(FGGreenPrimary, FGGreenSecondary, FGPurpleAccent, FGGreenPrimary)
+                                if (story.author.isOwner)
+                                    listOf(Color(0xFFFFD700), FGGreenPrimary, Color(0xFFFFD700))
+                                else
+                                    listOf(FGGreenPrimary, FGGreenSecondary, FGPurpleAccent, FGGreenPrimary)
                             )
                         )
                         .padding(2.5.dp),
@@ -345,11 +437,17 @@ fun StoriesRow(
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = story.author.name.split(" ").first(),
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = story.author.name.split(" ").first(),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1
+                    )
+                    if (story.author.isOwner) {
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Icon(Icons.Default.Verified, contentDescription = null, tint = FGGreenPrimary, modifier = Modifier.size(10.dp))
+                    }
+                }
             }
         }
     }
@@ -358,14 +456,18 @@ fun StoriesRow(
 @Composable
 fun PostCard(
     post: Post,
+    isMyPost: Boolean,
     onLike: () -> Unit,
     onSave: () -> Unit,
     onComment: () -> Unit,
     onShare: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onReport: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isDoubleTapHeartVisible by remember { mutableStateOf(false) }
     val heartScale by animateFloatAsState(targetValue = if (post.isLiked) 1.2f else 1.0f, label = "heartScale")
+    var showMenu by remember { mutableStateOf(false) }
 
     Card(
         modifier = modifier
@@ -403,12 +505,27 @@ fun PostCard(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.Eco,
-                            contentDescription = "Verified Leaf",
-                            tint = FGGreenPrimary,
-                            modifier = Modifier.size(14.dp)
-                        )
+                        if (post.author.isOwner) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = FGGreenPrimary
+                            ) {
+                                Text(
+                                    text = "FOUNDER",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.Black,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Eco,
+                                contentDescription = "Verified Leaf",
+                                tint = FGGreenPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                     }
                     Text(
                         text = "${post.location} • ${post.timeAgo}",
@@ -416,12 +533,48 @@ fun PostCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                IconButton(onClick = { /* options */ }) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Options",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                // Options Menu
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Options",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        if (isMyPost) {
+                            DropdownMenuItem(
+                                text = { Text("Edit Post") },
+                                onClick = {
+                                    showMenu = false
+                                    onEdit()
+                                },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete Post", color = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                            )
+                        } else {
+                            DropdownMenuItem(
+                                text = { Text("Report Post") },
+                                onClick = {
+                                    showMenu = false
+                                    onReport()
+                                },
+                                leadingIcon = { Icon(Icons.Default.Report, contentDescription = null, tint = Color(0xFFD32F2F)) }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -430,10 +583,7 @@ fun PostCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(300.dp)
-                    .clickable {
-                        onLike()
-                        isDoubleTapHeartVisible = true
-                    },
+                    .clickable { onLike() },
                 contentAlignment = Alignment.Center
             ) {
                 Image(
@@ -442,6 +592,23 @@ fun PostCard(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+
+                if (post.mediaList.size > 1) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.Black.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = "1/${post.mediaList.size} 📷",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
 
                 // Double tap like animation indicator
                 if (post.isLiked) {

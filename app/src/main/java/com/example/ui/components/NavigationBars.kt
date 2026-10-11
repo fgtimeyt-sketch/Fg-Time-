@@ -85,6 +85,32 @@ fun FGTimeTopBar(
             }
         },
         actions = {
+            // AI Assistant Studio button
+            IconButton(
+                onClick = { viewModel.navigateTo(Screen.AI_STUDIO) },
+                modifier = Modifier.testTag("btn_top_ai_studio")
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (uiState.currentScreen == Screen.AI_STUDIO)
+                                Brush.linearGradient(listOf(FGGreenPrimary, FGPurpleAccent))
+                            else
+                                Brush.linearGradient(listOf(FGGreenPrimary.copy(alpha = 0.2f), FGPurpleAccent.copy(alpha = 0.2f)))
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "FG TIME AI",
+                        tint = if (uiState.currentScreen == Screen.AI_STUDIO) Color.Black else FGGreenPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
             // Language quick toggle
             IconButton(
                 onClick = { viewModel.toggleLanguage() },
@@ -126,7 +152,7 @@ fun FGTimeTopBar(
                 }
             }
 
-            // Direct Messages
+            // Direct Messages & Calls
             IconButton(
                 onClick = { viewModel.navigateTo(Screen.DIRECT_MESSAGES) },
                 modifier = Modifier.testTag("btn_top_messages")

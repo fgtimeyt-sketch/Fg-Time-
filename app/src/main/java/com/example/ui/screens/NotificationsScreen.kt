@@ -101,6 +101,7 @@ fun NotificationsScreen(
                                     NotificationType.COMMENT -> Icons.Default.ModeComment
                                     NotificationType.FOLLOW -> Icons.Default.PersonAdd
                                     NotificationType.REMIX -> Icons.Default.MusicNote
+                                    NotificationType.CALL -> Icons.Default.Phone
                                     NotificationType.SYSTEM -> Icons.Default.Notifications
                                 }
                                 Box(

@@ -202,44 +202,47 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_OUTCOME: ${{ steps.publish_release.outcome }}
+          ASSET_NAME: ${{ steps.prepare_asset.outputs.asset_name }}
         run: |
-          RELEASE_OUTCOME="${{ steps.publish_release.outcome }}"
           RELEASE_TAG="debug-apk-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
-          ASSET_NAME="${{ steps.prepare_asset.outputs.asset_name }}"
 
           if [ "$RELEASE_OUTCOME" = "success" ]; then
             echo "=================================================="
             echo "GitHub Release created successfully!"
-            echo "Release Tag: $RELEASE_TAG"
-            echo "APK Asset Name: $ASSET_NAME"
+            echo "Release Tag: ${RELEASE_TAG}"
+            echo "APK Asset Name: ${ASSET_NAME}"
             echo "=================================================="
 
-            RELEASE_URL=$(gh release view "$RELEASE_TAG" --json url -q .url 2>/dev/null || echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}")
-            echo "Direct Release URL: $RELEASE_URL"
+            RELEASE_URL=$(gh release view "$RELEASE_TAG" --json url -q .url 2>/dev/null || true)
+            if [ -z "$RELEASE_URL" ]; then
+              RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
+            fi
+            echo "Direct Release URL: ${RELEASE_URL}"
 
-            {
-              echo "## 🚀 Debug APK Published Successfully"
-              echo ""
-              echo "- **Release Title**: Debug APK Build #${GITHUB_RUN_NUMBER}"
-              echo "- **Release Tag**: \`${RELEASE_TAG}\`"
-              echo "- **Download Release Asset**: [View Release and Download APK](${RELEASE_URL})"
-              echo "- **Asset Filename**: \`${ASSET_NAME}\`"
-              echo "- **Actions Artifact Backup**: The standard artifact \`app-debug-apk\` is also preserved in this workflow run."
-              echo ""
-              echo "You can download the APK directly from the **Assets** section of the release."
-            } >> "$GITHUB_STEP_SUMMARY"
+            if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+              echo "## 🚀 Debug APK Published Successfully" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "- **Release Title**: Debug APK Build #${GITHUB_RUN_NUMBER}" >> "$GITHUB_STEP_SUMMARY"
+              echo "- **Release Tag**: \`${RELEASE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
+              echo "- **Download Release Asset**: [View Release and Download APK](${RELEASE_URL})" >> "$GITHUB_STEP_SUMMARY"
+              echo "- **Asset Filename**: \`${ASSET_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
+              echo "- **Actions Artifact Backup**: The standard artifact \`app-debug-apk\` is also preserved in this workflow run." >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "You can download the APK directly from the **Assets** section of the release." >> "$GITHUB_STEP_SUMMARY"
+            fi
           else
             echo "::warning::GitHub Release publishing did not succeed or was skipped."
             echo "The debug APK build and artifact upload succeeded!"
             echo "The Actions artifact named app-debug-apk remains available for download."
 
-            {
-              echo "## ⚠️ Release Publishing Notice"
-              echo ""
-              echo "- **APK Build Status**: ✅ Succeeded"
-              echo "- **Actions Artifact**: ✅ Preserved as \`app-debug-apk\`"
-              echo "- **Release Publishing**: ⚠️ Not published (check repository permissions or token rights)"
-              echo ""
-              echo "You can download the compiled APK artifact directly from the **Artifacts** section of this workflow run."
-            } >> "$GITHUB_STEP_SUMMARY"
+            if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+              echo "## ⚠️ Release Publishing Notice" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "- **APK Build Status**: ✅ Succeeded" >> "$GITHUB_STEP_SUMMARY"
+              echo "- **Actions Artifact**: ✅ Preserved as \`app-debug-apk\`" >> "$GITHUB_STEP_SUMMARY"
+              echo "- **Release Publishing**: ⚠️ Not published (check repository permissions or token rights)" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "You can download the compiled APK artifact directly from the **Artifacts** section of this workflow run." >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi

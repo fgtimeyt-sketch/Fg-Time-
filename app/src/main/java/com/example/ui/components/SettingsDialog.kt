@@ -17,8 +17,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.FGGreenPrimary
+import com.example.ui.theme.FGGreenSecondary
 import com.example.viewmodel.FGTimeViewModel
 import com.example.viewmodel.Language
+import com.example.viewmodel.Screen
 
 @Composable
 fun SettingsDialog(
@@ -29,9 +31,12 @@ fun SettingsDialog(
     val isHindi = uiState.language == Language.HINDI
 
     var isPrivateAccount by remember { mutableStateOf(false) }
+    var isOnlineStatusVisible by remember { mutableStateOf(true) }
     var pushNotifications by remember { mutableStateOf(true) }
+    var allowCallsFrom by remember { mutableStateOf("Followers Only") }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     val scrollState = rememberScrollState()
 
@@ -41,7 +46,7 @@ fun SettingsDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Settings, contentDescription = null, tint = FGGreenPrimary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(if (isHindi) "सेटिंग्स और गोपनीयता" else "Settings & Privacy", fontWeight = FontWeight.Bold)
+                Text(if (isHindi) "सेटिंग्स और गोपनीयता केंद्र" else "Settings & Privacy Center", fontWeight = FontWeight.Bold)
             }
         },
         text = {
@@ -51,6 +56,29 @@ fun SettingsDialog(
                     .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // Section: Founder & Admin Portal
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = FGGreenPrimary.copy(alpha = 0.15f),
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        onDismiss()
+                        viewModel.navigateTo(Screen.ADMIN_DASHBOARD)
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = FGGreenPrimary)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Owner & Admin Portal", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                            Text("Moderation, metrics, and owner controls (Muksidul)", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = FGGreenPrimary)
+                    }
+                }
+
                 // Section: Appearance & Language
                 Text(
                     text = if (isHindi) "दिखावट और भाषा (Display & Language)" else "Display & Language",
@@ -91,7 +119,7 @@ fun SettingsDialog(
 
                 // Section: Privacy Controls
                 Text(
-                    text = if (isHindi) "गोपनीयता नियंत्रण (Privacy)" else "Privacy & Security",
+                    text = if (isHindi) "गोपनीयता नियंत्रण (Privacy)" else "Privacy & Permissions",
                     style = MaterialTheme.typography.titleSmall,
                     color = FGGreenPrimary,
                     fontWeight = FontWeight.Bold
@@ -105,7 +133,7 @@ fun SettingsDialog(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(if (isHindi) "निजी खाता (Private Account)" else "Private Account")
                         Text(
-                            text = if (isHindi) "केवल स्वीकृत फ़ॉलोअर्स आपकी पोस्ट देख सकते हैं" else "Only approved followers can view your posts",
+                            text = if (isHindi) "केवल स्वीकृत फ़ॉलोअर्स आपकी पोस्ट देख सकते हैं" else "Only approved followers can view your posts and reels",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -122,12 +150,73 @@ fun SettingsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(if (isHindi) "सूचनाएं (Push Notifications)" else "Notifications")
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Show Online Activity Status")
+                        Text(
+                            text = "Allow connections to see when you are active on FG TIME",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Switch(
-                        checked = pushNotifications,
-                        onCheckedChange = { pushNotifications = it },
+                        checked = isOnlineStatusVisible,
+                        onCheckedChange = { isOnlineStatusVisible = it },
                         colors = SwitchDefaults.colors(checkedThumbColor = FGGreenPrimary)
                     )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Incoming Call Security")
+                    AssistChip(
+                        onClick = {
+                            allowCallsFrom = if (allowCallsFrom == "Followers Only") "Everyone" else "Followers Only"
+                        },
+                        label = { Text(allowCallsFrom) }
+                    )
+                }
+
+                Divider()
+
+                // Section: Data & Help
+                Text(
+                    text = "Data, Community & Help",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = FGGreenPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+
+                OutlinedButton(
+                    onClick = {
+                        showInfoDialog = Pair(
+                            "Export FG TIME Data",
+                            "Your personal data archive request has been queued. An export ZIP containing your photos, posts, bookmarks, and chat history will be compiled."
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Download My Account Data")
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        showInfoDialog = Pair(
+                            "FG TIME Community Guidelines",
+                            "1. Authentic Growth: We value respectful creativity.\n2. Respect Intellectual Property: Keep remixes collaborative.\n3. Safety: Harassment, hate speech, and spam are strictly prohibited."
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.MenuBook, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Community Guidelines & Rules")
                 }
 
                 Divider()
@@ -177,6 +266,18 @@ fun SettingsDialog(
         }
     )
 
+    // Info Dialog
+    showInfoDialog?.let { info ->
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = null },
+            title = { Text(info.first, fontWeight = FontWeight.Bold) },
+            text = { Text(info.second) },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = null }) { Text("OK", color = FGGreenPrimary) }
+            }
+        )
+    }
+
     // Logout Confirmation Dialog
     if (showLogoutConfirm) {
         AlertDialog(
@@ -215,7 +316,7 @@ fun SettingsDialog(
             title = { Text("Delete Account Confirmation", color = MaterialTheme.colorScheme.error) },
             text = {
                 Text(
-                    "This action is permanent and will clear all your session data, posts, and bookmarks."
+                    "This action is permanent and will clear all your session data, posts, reels, and bookmarks."
                 )
             },
             confirmButton = {
