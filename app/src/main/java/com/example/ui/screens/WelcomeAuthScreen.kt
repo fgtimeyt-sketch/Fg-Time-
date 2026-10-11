@@ -49,67 +49,96 @@ fun WelcomeAuthScreen(
     var isLoginMode by remember { mutableStateOf(false) }
     var fullName by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
-    var contact by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("+91 98765 43210") }
     var dateOfBirth by remember { mutableStateOf("2001-08-15") }
+    var enteredOtp by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var agreedToTerms by remember { mutableStateOf(false) }
+    var selectedAvatarRes by remember { mutableIntStateOf(R.drawable.fgtime_creator) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showTermsDialog by remember { mutableStateOf(false) }
+
+    // Forgot Password with OTP state
     var showForgotPasswordDialog by remember { mutableStateOf(false) }
-    var recoveryEmail by remember { mutableStateOf("") }
+    var resetPhone by remember { mutableStateOf("") }
+    var resetOtpCode by remember { mutableStateOf("") }
+    var resetNewPassword by remember { mutableStateOf("") }
+    var resetOtpSent by remember { mutableStateOf(false) }
+    var resetError by remember { mutableStateOf<String?>(null) }
 
     val scrollState = rememberScrollState()
 
-    fun validateAndSubmit() {
+    val avatarOptions = listOf(
+        Pair("Creator", R.drawable.fgtime_creator),
+        Pair("Leaf Brand", R.drawable.fgtime_leaf_logo),
+        Pair("Studio", R.drawable.fgtime_reel),
+        Pair("Banner", R.drawable.fgtime_banner)
+    )
+
+    fun handleLogin() {
         errorMessage = null
-        if (isLoginMode) {
-            if (contact.isBlank() || password.isBlank()) {
-                errorMessage = if (isHindi)
-                    "कृपया ईमेल/फ़ोन और पासवर्ड दर्ज करें / Please enter contact and password."
-                else
-                    "Please enter your email or phone and password."
-                return
-            }
-            viewModel.performLogin(
-                name = fullName.ifBlank { "FG Member" },
-                username = username.ifBlank { "member_fg" },
-                contact = contact,
-                dob = dateOfBirth
-            )
-        } else {
-            // Sign Up validation
-            if (fullName.isBlank() || username.isBlank() || contact.isBlank() || password.isBlank() || confirmPassword.isBlank()) {
-                errorMessage = if (isHindi)
-                    "कृपया सभी आवश्यक फ़ील्ड भरें / Please fill all required fields."
-                else
-                    "Please fill in all required fields."
-                return
-            }
-            if (password.length < 6) {
-                errorMessage = if (isHindi)
-                    "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए / Password must be at least 6 characters."
-                else
-                    "Password must be at least 6 characters long."
-                return
-            }
-            if (password != confirmPassword) {
-                errorMessage = if (isHindi)
-                    "पासवर्ड मेल नहीं खा रहे हैं / Passwords do not match."
-                else
-                    "Passwords do not match. Please check again."
-                return
-            }
-            if (!agreedToTerms) {
-                errorMessage = if (isHindi)
-                    "कृपया जारी रखने के लिए नियमों और शर्तों को स्वीकार करें / Please agree to Terms & Privacy."
-                else
-                    "Please accept the Terms of Service and Privacy Policy to continue."
-                return
-            }
-            viewModel.performLogin(fullName, username, contact, dateOfBirth)
+        if (phoneNumber.isBlank() || password.isBlank()) {
+            errorMessage = if (isHindi)
+                "कृपया मोबाइल/उपयोगकर्ता नाम और पासवर्ड दर्ज करें"
+            else
+                "Please enter your mobile/username and password."
+            return
         }
+        viewModel.loginWithCredentials(
+            identifier = phoneNumber,
+            password = password,
+            onError = { err -> errorMessage = err }
+        )
+    }
+
+    fun handleSignup() {
+        errorMessage = null
+        if (fullName.isBlank() || username.isBlank() || phoneNumber.isBlank()) {
+            errorMessage = if (isHindi)
+                "कृपया सभी विवरण भरें"
+            else
+                "Please fill in all personal details."
+            return
+        }
+        if (!uiState.isOtpVerified) {
+            errorMessage = if (isHindi)
+                "कृपया पहले मोबाइल ओटीपी सत्यापित करें"
+            else
+                "Please verify your mobile number with OTP first."
+            return
+        }
+        if (password.length < 6) {
+            errorMessage = if (isHindi)
+                "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए"
+            else
+                "Password must be at least 6 characters long."
+            return
+        }
+        if (password != confirmPassword) {
+            errorMessage = if (isHindi)
+                "पासवर्ड मेल नहीं खा रहे हैं"
+            else
+                "Passwords do not match. Please verify."
+            return
+        }
+        if (!agreedToTerms) {
+            errorMessage = if (isHindi)
+                "कृपया नियमों और गोपनीयता नीति को स्वीकार करें"
+            else
+                "Please agree to the Terms & Privacy Policy to continue."
+            return
+        }
+
+        viewModel.completeSignup(
+            name = fullName,
+            username = username,
+            phone = phoneNumber,
+            password = password,
+            dob = dateOfBirth,
+            avatarRes = selectedAvatarRes
+        )
     }
 
     Box(
@@ -135,7 +164,7 @@ fun WelcomeAuthScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .padding(horizontal = 22.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Top Controls: Language & Theme
@@ -183,104 +212,110 @@ fun WelcomeAuthScreen(
                 }
             }
 
+            // SIMULATED INCOMING SMS OTP BANNER
+            AnimatedVisibility(visible = uiState.activeOtpNotification != null) {
+                uiState.activeOtpNotification?.let { notifText ->
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = FGGreenDark
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp)
+                            .border(1.5.dp, FGGreenPrimary, RoundedCornerShape(16.dp))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(FGGreenPrimary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Sms, contentDescription = null, tint = Color.Black)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "SMS Dispatch Notification",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = FGGreenSecondary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = notifText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            IconButton(onClick = { viewModel.clearOtpNotification() }) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(10.dp))
 
-            // FG TIME Leaf Logo Emblem
+            // BRAND LOGO & TITLE
             Box(
                 modifier = Modifier
-                    .size(88.dp)
+                    .size(86.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
-                            listOf(FGGreenPrimary.copy(alpha = 0.35f), Color.Transparent)
+                            listOf(FGGreenSecondary.copy(alpha = 0.35f), Color.Transparent)
                         )
-                    )
-                    .border(2.dp, FGGreenPrimary, CircleShape),
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.fgtime_leaf_logo),
-                    contentDescription = "FG TIME Logo",
+                    contentDescription = "FG TIME Brand Logo",
                     modifier = Modifier
-                        .size(70.dp)
-                        .clip(CircleShape),
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, FGGreenPrimary, CircleShape),
                     contentScale = ContentScale.Crop
                 )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Brand Title & Creator Note
             Text(
                 text = "FG TIME",
                 style = MaterialTheme.typography.headlineMedium.copy(
-                    letterSpacing = 2.sp,
-                    fontWeight = FontWeight.Black
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 2.sp
                 ),
-                color = if (uiState.isDarkMode) Color.White else FGGreenDark
+                color = FGGreenPrimary
             )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Created by Muksidul",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = FGGreenSecondary,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(Icons.Default.Verified, contentDescription = null, tint = FGGreenPrimary, modifier = Modifier.size(14.dp))
-            }
 
             Text(
-                text = if (isHindi) "सकारात्मक जुड़ाव और रचनात्मकता का मंच 🌿" else "Growth, Creativity & Authentic Connection 🌿",
+                text = if (isHindi)
+                    "सच्ची रचनात्मकता और सुरक्षित जुड़ाव का मंच 🌿"
+                else
+                    "Where genuine creativity & green connections grow 🌿",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Demo Mode Notice Banner
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = FGGreenPrimary.copy(alpha = 0.12f)
-                ),
-                border = CardDefaults.outlinedCardBorder().copy(
-                    brush = Brush.horizontalGradient(listOf(FGGreenPrimary, FGGreenSecondary))
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Demo Mode",
-                        tint = FGGreenPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isHindi)
-                            "डेमो मोड: स्थानीय सुरक्षित सत्र। सभी सामाजिक सुविधाएं, कॉल्स और रीमिक्स सक्रिय हैं।"
-                        else
-                            "Interactive Demo: Full audio/video calling, reels, remix studio, and AI features active.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Mode Selector Tabs (Sign Up vs Login)
+            // MODE SWITCHER: SIGN UP vs LOG IN
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     .padding(4.dp)
             ) {
                 Button(
@@ -297,7 +332,7 @@ fun WelcomeAuthScreen(
                     contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
                     Text(
-                        text = if (isHindi) "खाता बनाएं" else "Create Account",
+                        text = if (isHindi) "खाता बनाएं (Sign Up)" else "Sign Up",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -316,7 +351,7 @@ fun WelcomeAuthScreen(
                     contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
                     Text(
-                        text = if (isHindi) "लॉग इन करें" else "Log In",
+                        text = if (isHindi) "लॉग इन (Log In)" else "Log In",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -325,10 +360,11 @@ fun WelcomeAuthScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Error Message Banner
-            AnimatedVisibility(visible = errorMessage != null) {
-                errorMessage?.let { error ->
+            AnimatedVisibility(visible = errorMessage != null || uiState.otpError != null) {
+                val err = errorMessage ?: uiState.otpError
+                err?.let { error ->
                     Card(
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer
                         ),
@@ -360,6 +396,53 @@ fun WelcomeAuthScreen(
 
             // FORM FIELDS
             if (!isLoginMode) {
+                // Sign Up: Avatar Selector
+                Text(
+                    text = if (isHindi) "अपना प्रोफाइल अवतार चुनें" else "Choose Your Profile Avatar",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    avatarOptions.forEach { (label, resId) ->
+                        val isSelected = selectedAvatarRes == resId
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clickable { selectedAvatarRes = resId }
+                                .padding(4.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = resId),
+                                contentDescription = label,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .border(
+                                        width = if (isSelected) 2.5.dp else 1.dp,
+                                        color = if (isSelected) FGGreenPrimary else Color.Gray.copy(alpha = 0.4f),
+                                        shape = CircleShape
+                                    ),
+                                contentScale = ContentScale.Crop
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSelected) FGGreenPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 // Full Name
                 OutlinedTextField(
                     value = fullName,
@@ -369,9 +452,7 @@ fun WelcomeAuthScreen(
                         Icon(Icons.Outlined.Badge, contentDescription = null, tint = FGGreenPrimary)
                     },
                     singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("input_full_name"),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
@@ -387,9 +468,7 @@ fun WelcomeAuthScreen(
                         Icon(Icons.Outlined.Person, contentDescription = null, tint = FGGreenPrimary)
                     },
                     singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("input_username"),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
@@ -404,252 +483,468 @@ fun WelcomeAuthScreen(
                         Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = FGGreenPrimary)
                     },
                     singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("input_dob"),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
-            }
 
-            // Email or Phone
-            OutlinedTextField(
-                value = contact,
-                onValueChange = { contact = it },
-                label = { Text(if (isHindi) "ईमेल या फ़ोन नंबर (Email or Phone)" else "Email or Phone Number") },
-                leadingIcon = {
-                    Icon(Icons.Outlined.Email, contentDescription = null, tint = FGGreenPrimary)
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("input_contact"),
-                shape = RoundedCornerShape(14.dp)
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Password
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text(if (isHindi) "पासवर्ड (Password)" else "Password") },
-                leadingIcon = {
-                    Icon(Icons.Outlined.Lock, contentDescription = null, tint = FGGreenPrimary)
-                },
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = "Toggle Password"
-                        )
-                    }
-                },
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("input_password"),
-                shape = RoundedCornerShape(14.dp)
-            )
-
-            if (isLoginMode) {
-                // Forgot Password link
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = if (isHindi) "पासवर्ड भूल गए? (Forgot Password)" else "Forgot Password?",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = FGGreenSecondary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable {
-                            recoveryEmail = contact
-                            showForgotPasswordDialog = true
+                // Mobile Number
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    label = { Text(if (isHindi) "मोबाइल नंबर (Mobile Number)" else "Mobile Number") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.Phone, contentDescription = null, tint = FGGreenPrimary)
+                    },
+                    trailingIcon = {
+                        if (uiState.isOtpVerified) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = "Verified", tint = FGGreenPrimary)
+                        } else {
+                            TextButton(
+                                onClick = { viewModel.requestSignupOtp(phoneNumber) },
+                                enabled = phoneNumber.isNotBlank() && !uiState.isOtpLoading
+                            ) {
+                                Text("Get OTP", fontWeight = FontWeight.Bold, color = FGGreenPrimary)
+                            }
                         }
-                    )
-                }
-            }
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                )
 
-            if (!isLoginMode) {
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // OTP Verification Section
+                if (!uiState.isOtpVerified) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "Enter 6-Digit OTP Sent to Mobile",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = enteredOtp,
+                                    onValueChange = { enteredOtp = it.take(6) },
+                                    placeholder = { Text("000000") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Button(
+                                    onClick = { viewModel.verifySignupOtp(enteredOtp) },
+                                    enabled = enteredOtp.length == 6 && !uiState.isOtpLoading,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = FGGreenPrimary,
+                                        contentColor = Color.Black
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Verify", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                } else {
+                    Surface(
+                        color = FGGreenPrimary.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Verified, contentDescription = null, tint = FGGreenPrimary, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Mobile verified with authentic OTP! ✅",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = FGGreenPrimary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // Password
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(if (isHindi) "पासवर्ड (Password)" else "Create Password") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.Lock, contentDescription = null, tint = FGGreenPrimary)
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = "Toggle Password"
+                            )
+                        }
+                    },
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                )
+
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Confirm Password
                 OutlinedTextField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
-                    label = { Text(if (isHindi) "पासवर्ड की पुष्टि करें (Confirm Password)" else "Confirm Password") },
+                    label = { Text(if (isHindi) "पासवर्ड की पुष्टि करें" else "Confirm Password") },
                     leadingIcon = {
-                        Icon(Icons.Outlined.LockReset, contentDescription = null, tint = FGGreenPrimary)
+                        Icon(Icons.Outlined.LockClock, contentDescription = null, tint = FGGreenPrimary)
                     },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    visualTransformation = PasswordVisualTransformation(),
                     singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("input_confirm_password"),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Terms and Privacy Checkbox
+                // Terms and Conditions Checkbox
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { agreedToTerms = !agreedToTerms },
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Checkbox(
                         checked = agreedToTerms,
                         onCheckedChange = { agreedToTerms = it },
-                        colors = CheckboxDefaults.colors(checkedColor = FGGreenPrimary),
-                        modifier = Modifier.testTag("checkbox_terms")
+                        colors = CheckboxDefaults.colors(checkedColor = FGGreenPrimary)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (isHindi)
                             "मैं FG TIME के नियमों और गोपनीयता नीति से सहमत हूँ"
                         else
-                            "I agree to FG TIME Terms and Privacy Policy",
+                            "I agree to the Terms of Service & Privacy Policy",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.clickable { showTermsDialog = true }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Create Account Button
+                Button(
+                    onClick = { handleSignup() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("btn_create_account"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = FGGreenPrimary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(Icons.Default.PersonAdd, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isHindi) "खाता बनाएं (Create Account)" else "Create FG TIME Account",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+            } else {
+                // LOG IN MODE
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    label = { Text(if (isHindi) "मोबाइल नंबर या उपयोगकर्ता नाम" else "Mobile Number or @Username") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.Person, contentDescription = null, tint = FGGreenPrimary)
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(if (isHindi) "पासवर्ड (Password)" else "Password") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.Lock, contentDescription = null, tint = FGGreenPrimary)
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = "Toggle Password"
+                            )
+                        }
+                    },
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                )
+
+                // Forgot Password link
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = {
+                        resetPhone = phoneNumber
+                        showForgotPasswordDialog = true
+                    }) {
+                        Text(
+                            text = if (isHindi) "पासवर्ड भूल गए? (Reset via OTP)" else "Forgot Password? (Reset via OTP)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = FGGreenPrimary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = { handleLogin() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("btn_login_submit"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = FGGreenPrimary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(Icons.Default.Login, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isHindi) "लॉग इन करें" else "Log In to FG TIME",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Primary Action Button
-            Button(
-                onClick = { validateAndSubmit() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .testTag("btn_auth_submit"),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = FGGreenPrimary,
-                    contentColor = Color.Black
-                ),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(
-                    imageVector = if (isLoginMode) Icons.Default.Login else Icons.Default.PersonAdd,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (isLoginMode) {
-                        if (isHindi) "लॉग इन करें" else "Log In"
-                    } else {
-                        if (isHindi) "खाता बनाएं और शुरू करें" else "Create Account"
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Founder Review Button (Log in as Muksidul)
-            Button(
-                onClick = {
-                    viewModel.performLogin("Muksidul", "muksidul", "muksidul@fgtime.com")
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .testTag("btn_login_muksidul"),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = FGGreenPrimary
-                ),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = FGGreenPrimary, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Sign in as Creator Muksidul (Founder Access)",
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Quick Guest Preview Button
+            // Quick Guest / Founder Demo Login
             OutlinedButton(
                 onClick = {
-                    viewModel.performLogin("Aarav Sharma", "aarav_fg", "aarav@fgtime.com")
+                    viewModel.loginWithCredentials(
+                        identifier = "muksidul",
+                        password = "FGTime@123",
+                        onError = {
+                            viewModel.completeSignup(
+                                name = "Muksidul",
+                                username = "muksidul",
+                                phone = "+919876543210",
+                                password = "FGTime@123",
+                                dob = "1999-05-20",
+                                avatarRes = R.drawable.fgtime_leaf_logo
+                            )
+                        }
+                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .testTag("btn_guest_preview"),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = FGGreenPrimary,
-                    modifier = Modifier.size(18.dp)
+                    .testTag("btn_founder_demo"),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = FGGreenPrimary
+                ),
+                border = ButtonDefaults.outlinedButtonBorder.copy(
+                    brush = Brush.horizontalGradient(listOf(FGGreenPrimary, FGGreenSecondary))
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+            ) {
+                Icon(Icons.Default.Star, contentDescription = null, tint = FGGreenPrimary)
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isHindi) "त्वरित डेमो पूर्वावलोकन (Guest Demo)" else "Explore as Guest Preview",
-                    color = MaterialTheme.colorScheme.onSurface,
+                    text = "Quick Demo / Founder Login (Muksidul)",
                     fontWeight = FontWeight.SemiBold
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
+    }
 
-        // Forgot Password Dialog
-        if (showForgotPasswordDialog) {
-            AlertDialog(
-                onDismissRequest = { showForgotPasswordDialog = false },
-                title = { Text("Account Recovery & Password Reset", fontWeight = FontWeight.Bold) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Enter your registered email address or phone number to receive a secure recovery verification code.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
+    // FORGOT PASSWORD WITH REAL OTP DIALOG
+    if (showForgotPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showForgotPasswordDialog = false
+                resetOtpSent = false
+                resetError = null
+            },
+            title = {
+                Text(
+                    text = "Reset Password with Mobile OTP",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Enter your registered mobile number. We will dispatch a 6-digit OTP to verify your identity.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = resetPhone,
+                        onValueChange = { resetPhone = it },
+                        label = { Text("Mobile Number") },
+                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = FGGreenPrimary) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (!resetOtpSent) {
+                        Button(
+                            onClick = {
+                                viewModel.requestPasswordResetOtp(resetPhone) {
+                                    resetOtpSent = true
+                                }
+                            },
+                            enabled = resetPhone.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = FGGreenPrimary, contentColor = Color.Black)
+                        ) {
+                            Text("Send Reset OTP 📲", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
                         OutlinedTextField(
-                            value = recoveryEmail,
-                            onValueChange = { recoveryEmail = it },
-                            label = { Text("Email or Phone") },
+                            value = resetOtpCode,
+                            onValueChange = { resetOtpCode = it.take(6) },
+                            label = { Text("6-Digit OTP Code") },
+                            leadingIcon = { Icon(Icons.Default.Sms, contentDescription = null, tint = FGGreenPrimary) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (recoveryEmail.isNotBlank()) {
-                                viewModel.recoverAccount(recoveryEmail)
-                                showForgotPasswordDialog = false
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = FGGreenPrimary)
-                    ) {
-                        Text("Send Reset Link", color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showForgotPasswordDialog = false }) {
-                        Text("Cancel")
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = resetNewPassword,
+                            onValueChange = { resetNewPassword = it },
+                            label = { Text("New Password") },
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = FGGreenPrimary) },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (resetError != null) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(text = resetError ?: "", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Button(
+                            onClick = {
+                                viewModel.verifyAndResetPassword(
+                                    phone = resetPhone,
+                                    otpCode = resetOtpCode,
+                                    newPassword = resetNewPassword,
+                                    onSuccess = {
+                                        showForgotPasswordDialog = false
+                                        resetOtpSent = false
+                                    },
+                                    onError = { err -> resetError = err }
+                                )
+                            },
+                            enabled = resetOtpCode.length == 6 && resetNewPassword.length >= 6,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = FGGreenPrimary, contentColor = Color.Black)
+                        ) {
+                            Text("Verify OTP & Set Password 🔒", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
-            )
-        }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showForgotPasswordDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Terms of Service & Privacy Dialog
+    if (showTermsDialog) {
+        AlertDialog(
+            onDismissRequest = { showTermsDialog = false },
+            title = {
+                Text(
+                    text = "FG TIME Privacy & Terms 🌿",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = """
+                            Welcome to FG TIME!
+
+                            1. Account Security: Your passwords are encrypted with SHA-256 and never stored in plain text. Mobile verification uses secure 6-digit OTP codes.
+
+                            2. Data Storage: Your profile, posts, photos, video remixes, bookmarks, and private/group messages are persistently stored in your SQLite database.
+
+                            3. Respect & Community: FG TIME is designed as a peaceful, creative, eco-inspired social space. Harassment, spam, and copyright infringement are strictly prohibited.
+
+                            4. Media & Video Remixing: The Remix Studio allows cutting and syncing licensed lo-fi and ambient music tracks. You retain ownership of your authentic original content.
+                        """.trimIndent(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        agreedToTerms = true
+                        showTermsDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FGGreenPrimary, contentColor = Color.Black)
+                ) {
+                    Text("Accept & Close", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 }

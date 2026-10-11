@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.FGGreenPrimary
 import com.example.ui.theme.FGGreenSecondary
@@ -37,6 +38,10 @@ fun SettingsDialog(
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showInfoDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var showChangePasswordDialog by remember { mutableStateOf(false) }
+    var oldPassInput by remember { mutableStateOf("") }
+    var newPassInput by remember { mutableStateOf("") }
+    var changePassError by remember { mutableStateOf<String?>(null) }
 
     val scrollState = rememberScrollState()
 
@@ -229,6 +234,17 @@ fun SettingsDialog(
                     fontWeight = FontWeight.Bold
                 )
 
+                // Change Password button
+                OutlinedButton(
+                    onClick = { showChangePasswordDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.LockReset, contentDescription = null, tint = FGGreenPrimary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (isHindi) "पासवर्ड बदलें (Change Password)" else "Change Password (SHA-256 Secured)")
+                }
+
                 // Log out button
                 OutlinedButton(
                     onClick = { showLogoutConfirm = true },
@@ -309,30 +325,78 @@ fun SettingsDialog(
         )
     }
 
-    // Delete Account Confirmation Dialog
-    if (showDeleteConfirm) {
+    // Change Password Dialog
+    if (showChangePasswordDialog) {
         AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete Account Confirmation", color = MaterialTheme.colorScheme.error) },
-            text = {
+            onDismissRequest = {
+                showChangePasswordDialog = false
+                changePassError = null
+                oldPassInput = ""
+                newPassInput = ""
+            },
+            title = {
                 Text(
-                    "This action is permanent and will clear all your session data, posts, reels, and bookmarks."
+                    text = if (isHindi) "सुरक्षित पासवर्ड बदलें" else "Change Account Password",
+                    fontWeight = FontWeight.Bold
                 )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Passwords are encrypted using SHA-256 and verified against the database.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = oldPassInput,
+                        onValueChange = { oldPassInput = it },
+                        label = { Text("Current Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newPassInput,
+                        onValueChange = { newPassInput = it },
+                        label = { Text("New Password (min 6 chars)") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (changePassError != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(text = changePassError ?: "", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        showDeleteConfirm = false
-                        onDismiss()
-                        viewModel.logout()
+                        if (oldPassInput.isBlank() || newPassInput.length < 6) {
+                            changePassError = "New password must be at least 6 characters."
+                        } else {
+                            viewModel.changePasswordInSettings(
+                                oldPassword = oldPassInput,
+                                newPassword = newPassInput,
+                                onSuccess = {
+                                    showChangePasswordDialog = false
+                                    changePassError = null
+                                    oldPassInput = ""
+                                    newPassInput = ""
+                                },
+                                onError = { err -> changePassError = err }
+                            )
+                        }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.buttonColors(containerColor = FGGreenPrimary, contentColor = Color.Black)
                 ) {
-                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Update Password", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
+                TextButton(onClick = { showChangePasswordDialog = false }) {
                     Text("Cancel")
                 }
             }

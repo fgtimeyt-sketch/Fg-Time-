@@ -51,6 +51,8 @@ data class Post(
     val content: String,
     @DrawableRes val imageResId: Int,
     val mediaList: List<Int> = emptyList(), // multi-photo carousel support
+    val mediaUri: String? = null,
+    val mediaType: String = "PHOTO", // PHOTO or VIDEO
     val tags: List<String> = emptyList(),
     val mentions: List<String> = emptyList(),
     val likesCount: Int = 24,

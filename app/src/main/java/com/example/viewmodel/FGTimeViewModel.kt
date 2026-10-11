@@ -1,9 +1,12 @@
 package com.example.viewmodel
 
+import android.app.Application
 import androidx.annotation.DrawableRes
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.R
+import com.example.data.FGTimeRepository
+import com.example.data.SecurityUtils
 import com.example.model.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -41,18 +44,38 @@ data class FGTimeUiState(
     val language: Language = Language.ENGLISH,
     val isLoggedIn: Boolean = false,
     val currentUser: UserProfile = UserProfile(
-        id = "me",
-        name = "Aarav Sharma",
-        username = "aarav_fg",
-        contact = "aarav@fgtime.com",
-        bio = "Eco-creator & digital storyteller 🌿 Creating the future on FG TIME",
-        avatarResId = R.drawable.fgtime_creator,
-        followers = 342,
-        following = 188,
-        postsCount = 6,
-        isVerified = false,
-        dateOfBirth = "2002-04-12"
+        id = "u_owner_muksidul",
+        name = "Muksidul",
+        username = "muksidul",
+        contact = "+919876543210",
+        bio = "Creator & Founder of FG TIME 🌿 Empowering authentic growth and creative connection.",
+        avatarResId = R.drawable.fgtime_leaf_logo,
+        followers = 5840,
+        following = 142,
+        postsCount = 42,
+        isFollowing = true,
+        isOwner = true,
+        isVerified = true,
+        isOnline = true,
+        dateOfBirth = "1999-05-20"
     ),
+
+    // Real OTP & Authentication State
+    val activeOtpNotification: String? = null,
+    val otpTargetPhone: String = "",
+    val otpPurpose: String = "SIGNUP",
+    val isOtpVerified: Boolean = false,
+    val isOtpLoading: Boolean = false,
+    val otpError: String? = null,
+
+    // Active Chat State
+    val activeChatId: String = "dm_maya",
+    val activeChatTitle: String = "Maya Green 🌿",
+    val activeChatAvatar: Int = R.drawable.fgtime_creator,
+    val activeChatIsOnline: Boolean = true,
+    val activeChatRecipientId: String = "u_maya",
+    val activeChatIsGroup: Boolean = false,
+
     val activeStoryIndex: Int = 0,
     val stories: List<StoryItem> = emptyList(),
     val posts: List<Post> = emptyList(),
@@ -66,6 +89,7 @@ data class FGTimeUiState(
     val activeSearchFilter: String = "All",
     val chatMessages: List<ChatMessage> = emptyList(),
     val groupChats: List<GroupChat> = emptyList(),
+
     // Remix Studio state
     val remixTracks: List<MusicTrack> = emptyList(),
     val selectedRemixTrackId: String = "t1",
@@ -75,6 +99,7 @@ data class FGTimeUiState(
     val studioVolume: Float = 0.8f,
     val studioExportProgress: Int? = null,
     val studioExportSuccessMessage: String? = null,
+
     // Calling state
     val activeCall: CallRecord? = null,
     val callState: CallState = CallState.IDLE,
@@ -83,16 +108,21 @@ data class FGTimeUiState(
     val isCallFrontCamera: Boolean = true,
     val callDurationSeconds: Int = 0,
     val callHistory: List<CallRecord> = emptyList(),
+
     // AI Assistant state
     val aiMessages: List<AIChatMessage> = emptyList(),
     val isAILoading: Boolean = false,
+
     // Admin & Moderation state
     val adminReports: List<AdminReport> = emptyList(),
+
     // Snackbar feedback message
     val snackbarMessage: String? = null
 )
 
-class FGTimeViewModel : ViewModel() {
+class FGTimeViewModel(application: Application) : AndroidViewModel(application) {
+
+    val repository = FGTimeRepository(application)
 
     private val _uiState = MutableStateFlow(FGTimeUiState())
     val uiState: StateFlow<FGTimeUiState> = _uiState.asStateFlow()
@@ -104,284 +134,339 @@ class FGTimeViewModel : ViewModel() {
     }
 
     private fun loadInitialData() {
-        val userMuksidul = UserProfile(
-            id = "u_owner_muksidul",
-            name = "Muksidul",
-            username = "muksidul",
-            contact = "muksidul@fgtime.com",
-            bio = "Creator & Founder of FG TIME 🌿 Empowering authentic growth and creative connection.",
-            avatarResId = R.drawable.fgtime_leaf_logo,
-            followers = 5840,
-            following = 142,
-            postsCount = 42,
-            isFollowing = true,
-            isOwner = true,
-            isVerified = true,
-            isOnline = true,
-            dateOfBirth = "1999-05-20"
-        )
+        viewModelScope.launch {
+            // Load persistent posts from SQLite
+            val postsFromDb = repository.getAllPosts(_uiState.value.currentUser.id)
+            val groupsFromDb = repository.getGroups()
+            val initialDmMessages = repository.getMessagesForChat("dm_maya", _uiState.value.currentUser.id)
+            val notificationsFromDb = repository.getNotifications(_uiState.value.currentUser.id)
 
-        val userMaya = UserProfile(
-            id = "u1",
-            name = "Maya Green",
-            username = "maya_creative",
-            contact = "maya@example.com",
-            bio = "Visual artist & sustainable living advocate 🍃",
-            avatarResId = R.drawable.fgtime_creator,
-            followers = 1420,
-            following = 412,
-            postsCount = 28,
-            isFollowing = true,
-            isVerified = true,
-            isOnline = true
-        )
-
-        val userLeo = UserProfile(
-            id = "u2",
-            name = "Rohan Verma",
-            username = "rohan_sound",
-            contact = "rohan@example.com",
-            bio = "Music producer • Lo-Fi & organic frequencies 🎧",
-            avatarResId = R.drawable.fgtime_leaf_logo,
-            followers = 890,
-            following = 210,
-            postsCount = 14,
-            isFollowing = false,
-            isOnline = false
-        )
-
-        val userSara = UserProfile(
-            id = "u3",
-            name = "Priya Patel",
-            username = "priya_botanics",
-            contact = "priya@example.com",
-            bio = "Urban greenhouse enthusiast 🌱 Green vibes only!",
-            avatarResId = R.drawable.fgtime_banner,
-            followers = 630,
-            following = 150,
-            postsCount = 9,
-            isFollowing = true,
-            isOnline = true
-        )
-
-        val initialStories = listOf(
-            StoryItem("s_owner", userMuksidul, R.drawable.fgtime_banner, "Welcome to the new FG TIME upgrade! 🌿✨", "1h ago", false),
-            StoryItem("s1", userMaya, R.drawable.fgtime_creator, "Morning sunshine through the leaves ✨", "2h ago", false),
-            StoryItem("s2", userLeo, R.drawable.fgtime_reel, "Remixing new organic soundscapes 🎵", "4h ago", false),
-            StoryItem("s3", userSara, R.drawable.fgtime_creator, "New vertical garden sprouts!", "6h ago", false)
-        )
-
-        val initialPosts = listOf(
-            Post(
-                id = "p_owner",
-                author = userMuksidul,
-                content = "Welcome everyone to FG TIME! 🌿 We built this platform for creativity, peace of mind, and genuine community. Check out the new Remix Studio, Audio & Video Calls, and AI Creator Assistant. Let us know your thoughts! #FGTime #FounderNote #CreativityUnleashed",
-                imageResId = R.drawable.fgtime_banner,
-                tags = listOf("#FGTime", "#FounderNote", "#Community"),
-                mentions = listOf("@muksidul", "@maya_creative"),
-                likesCount = 485,
-                commentsCount = 38,
-                isLiked = true,
-                isSaved = true,
-                timeAgo = "30m ago",
-                location = "FG TIME Global HQ"
-            ),
-            Post(
-                id = "p1",
-                author = userMaya,
-                content = "Embracing growth and creative stillness. When you surround yourself with green energy, creativity flows naturally. 🌿📷 #FGTime #GreenGrowth #NatureVibes",
-                imageResId = R.drawable.fgtime_creator,
-                mediaList = listOf(R.drawable.fgtime_creator, R.drawable.fgtime_banner),
-                tags = listOf("#FGTime", "#GreenGrowth", "#CreativeStudio"),
-                likesCount = 158,
-                commentsCount = 14,
-                isLiked = false,
-                isSaved = true,
-                timeAgo = "1 hour ago",
-                location = "Botanical Design Loft"
-            ),
-            Post(
-                id = "p2",
-                author = userLeo,
-                content = "Fresh ambient session recorded live in the greenhouse! Tested it with the FG TIME Remix Studio and added lo-fi bird echoes. Swipe up to vibe with us. 🎧✨ #LoFiBeats #RemixStudio",
-                imageResId = R.drawable.fgtime_reel,
-                tags = listOf("#FGTime", "#RemixStudio", "#MusicCommunity"),
-                likesCount = 230,
-                commentsCount = 26,
-                isLiked = true,
-                isSaved = false,
-                timeAgo = "3 hours ago",
-                location = "Emerald Sound Studio"
-            )
-        )
-
-        val initialComments = mapOf(
-            "p_owner" to listOf(
-                PostComment("c_owner_1", "p_owner", "Maya Green", "maya_creative", R.drawable.fgtime_creator, "Congratulations Muksidul! The new features feel so smooth and vibrant 💚", "20m ago", 15, true),
-                PostComment("c_owner_2", "p_owner", "Rohan Verma", "rohan_sound", R.drawable.fgtime_leaf_logo, "The calling and audio studio integration is game-changing!", "10m ago", 9, false)
-            ),
-            "p1" to listOf(
-                PostComment("c1", "p1", "Rohan Verma", "rohan_sound", R.drawable.fgtime_leaf_logo, "The lighting and leaf contrast in this shot is unreal! 💚", "45m ago", 8, true),
-                PostComment("c2", "p1", "Priya Patel", "priya_botanics", R.drawable.fgtime_banner, "Incredible energy Maya, keep shining! 🌱", "30m ago", 4, false)
-            )
-        )
-
-        val initialReels = listOf(
-            ReelItem(
-                id = "r_owner",
-                creatorName = "Muksidul",
-                creatorUsername = "muksidul",
-                creatorAvatarResId = R.drawable.fgtime_leaf_logo,
-                caption = "Behind the scenes building FG TIME 🌿 Coding in nature, where every idea grows into reality.",
-                musicTitle = "FG Time Anthem (Acoustic)",
-                musicArtist = "Muksidul",
-                likesCount = 3420,
-                commentsCount = 256,
-                sharesCount = 190,
-                isLiked = true,
-                isSaved = true,
-                coverResId = R.drawable.fgtime_banner
-            ),
-            ReelItem(
-                id = "r1",
-                creatorName = "Maya Green",
-                creatorUsername = "maya_creative",
-                creatorAvatarResId = R.drawable.fgtime_creator,
-                caption = "Dancing inside the greenhouse when the golden hour hits 🌿✨ What inspires your art today?",
-                musicTitle = "Emerald Pulse - LoFi Mix",
-                musicArtist = "FG Beats Official",
-                likesCount = 1840,
-                commentsCount = 142,
-                sharesCount = 88,
-                isLiked = true,
-                isSaved = false,
-                coverResId = R.drawable.fgtime_reel
-            )
-        )
-
-        val initialNotifications = listOf(
-            NotificationItem("n_owner", NotificationType.SYSTEM, "Muksidul (Founder)", R.drawable.fgtime_leaf_logo, "welcomed you to FG TIME 🌿", "Just now", false),
-            NotificationItem("n1", NotificationType.LIKE, "Maya Green", R.drawable.fgtime_creator, "liked your post 'Welcome to my space'", "10m ago", false),
-            NotificationItem("n2", NotificationType.COMMENT, "Rohan Verma", R.drawable.fgtime_leaf_logo, "commented: 'Great sound design! 🌿'", "1h ago", false),
-            NotificationItem("n3", NotificationType.FOLLOW, "Priya Patel", R.drawable.fgtime_banner, "started following your journey", "3h ago", true),
-            NotificationItem("n4", NotificationType.CALL, "Maya Green", R.drawable.fgtime_creator, "missed video call", "5h ago", true)
-        )
-
-        val initialTracks = listOf(
-            MusicTrack("t1", "Emerald Horizon (Lo-Fi)", "FG Studio Beats", 30, "Chillhop", 85),
-            MusicTrack("t2", "Leaves in the Breeze", "Acoustic Green", 45, "Acoustic", 95),
-            MusicTrack("t3", "Neon Botanic Pulse", "SynthFlora", 60, "Electronic", 120),
-            MusicTrack("t4", "Morning Dew Ambient", "Nature Soundscapes", 30, "Ambient", 72)
-        )
-
-        val initialMessages = listOf(
-            ChatMessage("m1", "Hey! Welcome to FG TIME 🌿 Founder Muksidul and the community are so glad you are here!", false, "Maya Green", "10:14 AM"),
-            ChatMessage("m2", "Thanks! The calling, remix studio, and dark green design look incredible.", true, "Aarav", "10:15 AM"),
-            ChatMessage("m3", "Feel free to voice call me or remix any of my tracks anytime! 🎧", false, "Maya Green", "10:16 AM")
-        )
-
-        val initialGroups = listOf(
-            GroupChat("g1", "FG TIME Creators Hub 🌿", R.drawable.fgtime_banner, 48, "Muksidul: New creator tools just went live!", "u_owner_muksidul"),
-            GroupChat("g2", "Sound & Remix Lab 🎧", R.drawable.fgtime_reel, 24, "Rohan: Dropping a fresh ambient pack today", "u2")
-        )
-
-        val initialCalls = listOf(
-            CallRecord("cl1", "Muksidul (Founder)", R.drawable.fgtime_leaf_logo, CallType.VIDEO, true, "Today, 11:30 AM", 240, false),
-            CallRecord("cl2", "Maya Green", R.drawable.fgtime_creator, CallType.AUDIO, false, "Yesterday, 4:15 PM", 185, false),
-            CallRecord("cl3", "Rohan Verma", R.drawable.fgtime_leaf_logo, CallType.VIDEO, true, "Oct 10, 2:00 PM", 0, true)
-        )
-
-        val initialAIMessages = listOf(
-            AIChatMessage("ai_welcome", "Hello! I am your FG TIME AI Creative Assistant 🌿 I can help you draft viral post captions, find trending botanical hashtags, outline video remix ideas, or assist with translations. How can I help you create today?", false, "Just now")
-        )
-
-        val initialReports = listOf(
-            AdminReport("rep1", "p_ext", "unknown_spammer", "Spam links to external gambling", "priya_botanics", "Inappropriate advertising", "1h ago", "PENDING")
-        )
-
-        _uiState.update {
-            it.copy(
-                stories = initialStories,
-                posts = initialPosts,
-                commentsByPostId = initialComments,
-                reels = initialReels,
-                notifications = initialNotifications,
-                searchUsers = listOf(userMuksidul, userMaya, userLeo, userSara),
-                remixTracks = initialTracks,
-                chatMessages = initialMessages,
-                groupChats = initialGroups,
-                callHistory = initialCalls,
-                aiMessages = initialAIMessages,
-                adminReports = initialReports
-            )
-        }
-    }
-
-    fun navigateTo(screen: Screen) {
-        _uiState.update {
-            it.copy(
-                previousScreen = if (screen != Screen.STORY_VIEWER && screen != Screen.CALL_SCREEN) it.currentScreen else it.previousScreen,
-                currentScreen = screen
-            )
-        }
-    }
-
-    fun toggleDarkMode() {
-        _uiState.update { it.copy(isDarkMode = !it.isDarkMode) }
-    }
-
-    fun toggleLanguage() {
-        _uiState.update {
-            val newLang = if (it.language == Language.ENGLISH) Language.HINDI else Language.ENGLISH
-            it.copy(
-                language = newLang,
-                snackbarMessage = if (newLang == Language.HINDI) "भाषा बदलकर हिन्दी की गई" else "Language switched to English"
-            )
-        }
-    }
-
-    fun performLogin(name: String, username: String, contact: String, dob: String = "2001-08-15") {
-        val isMuksidul = username.trim().equals("muksidul", ignoreCase = true)
-        val updatedUser = if (isMuksidul) {
-            UserProfile(
+            val userMuksidul = UserProfile(
                 id = "u_owner_muksidul",
                 name = "Muksidul",
                 username = "muksidul",
-                contact = contact.ifBlank { "muksidul@fgtime.com" },
+                contact = "+919876543210",
                 bio = "Creator & Founder of FG TIME 🌿 Empowering authentic growth and creative connection.",
                 avatarResId = R.drawable.fgtime_leaf_logo,
                 followers = 5840,
                 following = 142,
                 postsCount = 42,
+                isFollowing = true,
                 isOwner = true,
                 isVerified = true,
-                dateOfBirth = dob
+                isOnline = true,
+                dateOfBirth = "1999-05-20"
             )
-        } else {
-            _uiState.value.currentUser.copy(
-                name = name.ifBlank { "FG Explorer" },
-                username = username.ifBlank { "fg_explorer" },
-                contact = contact,
-                dateOfBirth = dob
-            )
-        }
 
-        _uiState.update {
-            it.copy(
-                currentUser = updatedUser,
-                isLoggedIn = true,
-                currentScreen = Screen.FEED,
-                snackbarMessage = if (it.language == Language.HINDI) "FG TIME में आपका स्वागत है! 🌿" else "Welcome to FG TIME, ${updatedUser.name}! 🌿"
+            val userMaya = UserProfile(
+                id = "u_maya",
+                name = "Maya Green",
+                username = "maya_creative",
+                contact = "+919876543211",
+                bio = "Visual artist & sustainable living advocate 🍃",
+                avatarResId = R.drawable.fgtime_creator,
+                followers = 1420,
+                following = 412,
+                postsCount = 28,
+                isFollowing = true,
+                isVerified = true,
+                isOnline = true
             )
+
+            val userLeo = UserProfile(
+                id = "u_rohan",
+                name = "Rohan Verma",
+                username = "rohan_sound",
+                contact = "+919876543212",
+                bio = "Music producer • Lo-Fi & organic frequencies 🎧",
+                avatarResId = R.drawable.fgtime_leaf_logo,
+                followers = 890,
+                following = 210,
+                postsCount = 14,
+                isFollowing = false,
+                isOnline = false
+            )
+
+            val userSara = UserProfile(
+                id = "u3",
+                name = "Priya Patel",
+                username = "priya_botanics",
+                contact = "+919876543213",
+                bio = "Urban greenhouse enthusiast 🌱 Green vibes only!",
+                avatarResId = R.drawable.fgtime_banner,
+                followers = 630,
+                following = 150,
+                postsCount = 9,
+                isFollowing = true,
+                isOnline = true
+            )
+
+            val initialStories = listOf(
+                StoryItem("s_owner", userMuksidul, R.drawable.fgtime_banner, "Welcome to FG TIME 🌿 Real OTP & Persistent Database active!", "1h ago", false),
+                StoryItem("s1", userMaya, R.drawable.fgtime_creator, "Morning sunshine through the leaves ✨", "2h ago", false),
+                StoryItem("s2", userLeo, R.drawable.fgtime_reel, "Remixing new organic soundscapes 🎵", "4h ago", false),
+                StoryItem("s3", userSara, R.drawable.fgtime_creator, "New vertical garden sprouts!", "6h ago", false)
+            )
+
+            val initialReels = listOf(
+                ReelItem(
+                    id = "r_owner",
+                    creatorName = "Muksidul",
+                    creatorUsername = "muksidul",
+                    creatorAvatarResId = R.drawable.fgtime_leaf_logo,
+                    caption = "Behind the scenes building FG TIME 🌿 Coding in nature, where every idea grows into reality.",
+                    musicTitle = "FG Time Anthem (Acoustic)",
+                    musicArtist = "Muksidul",
+                    likesCount = 3420,
+                    commentsCount = 256,
+                    sharesCount = 190,
+                    isLiked = true,
+                    isSaved = true,
+                    coverResId = R.drawable.fgtime_banner
+                ),
+                ReelItem(
+                    id = "r1",
+                    creatorName = "Maya Green",
+                    creatorUsername = "maya_creative",
+                    creatorAvatarResId = R.drawable.fgtime_creator,
+                    caption = "Dancing inside the greenhouse when the golden hour hits 🌿✨ What inspires your art today?",
+                    musicTitle = "Emerald Pulse - LoFi Mix",
+                    musicArtist = "FG Beats Official",
+                    likesCount = 1840,
+                    commentsCount = 142,
+                    sharesCount = 88,
+                    isLiked = true,
+                    isSaved = false,
+                    coverResId = R.drawable.fgtime_reel
+                )
+            )
+
+            val initialMusicTracks = listOf(
+                MusicTrack("t1", "Emerald Pulse (Lo-Fi)", "FG Beats Official", 28, "Ambient Lo-Fi", 82),
+                MusicTrack("t2", "Botanical Breeze", "Acoustic Greenery", 34, "Chill Acoustic", 95),
+                MusicTrack("t3", "Organic Echoes", "DJ Leafy", 22, "Electronic Ambient", 110),
+                MusicTrack("t4", "Morning Chlorophyll", "Symphony of Plants", 40, "Classical Crossover", 78)
+            )
+
+            _uiState.update {
+                it.copy(
+                    posts = postsFromDb,
+                    stories = initialStories,
+                    reels = initialReels,
+                    groupChats = groupsFromDb,
+                    chatMessages = initialDmMessages,
+                    notifications = notificationsFromDb,
+                    remixTracks = initialMusicTracks,
+                    searchUsers = listOf(userMuksidul, userMaya, userLeo, userSara)
+                )
+            }
         }
     }
 
-    fun recoverAccount(contact: String) {
-        _uiState.update {
-            it.copy(
-                snackbarMessage = "Password reset instructions sent to $contact. Check your inbox!"
-            )
+    // ==========================================
+    // AUTHENTICATION & OTP METHODS
+    // ==========================================
+
+    fun requestSignupOtp(phone: String, onCodeReady: ((String) -> Unit)? = null) {
+        if (!SecurityUtils.isValidPhone(phone)) {
+            _uiState.update { it.copy(otpError = "Please enter a valid phone number with at least 10 digits.") }
+            return
         }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isOtpLoading = true, otpError = null) }
+            val (success, result) = repository.requestOtp(phone, "SIGNUP")
+            if (success) {
+                val notificationText = "🌿 FG TIME SMS VERIFICATION\nYour OTP Code: $result\nValid for 5 minutes. Never share this code."
+                _uiState.update {
+                    it.copy(
+                        isOtpLoading = false,
+                        activeOtpNotification = notificationText,
+                        otpTargetPhone = SecurityUtils.normalizePhone(phone),
+                        otpPurpose = "SIGNUP",
+                        isOtpVerified = false,
+                        snackbarMessage = "SMS OTP sent to $phone 📲"
+                    )
+                }
+                onCodeReady?.invoke(result)
+            } else {
+                _uiState.update {
+                    it.copy(isOtpLoading = false, otpError = result)
+                }
+            }
+        }
+    }
+
+    fun verifySignupOtp(enteredCode: String, onVerified: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isOtpLoading = true, otpError = null) }
+            val phone = _uiState.value.otpTargetPhone
+            val isMatch = repository.verifyOtp(phone, enteredCode, "SIGNUP")
+            if (isMatch) {
+                _uiState.update {
+                    it.copy(
+                        isOtpLoading = false,
+                        isOtpVerified = true,
+                        activeOtpNotification = null,
+                        snackbarMessage = "Phone verified successfully! ✅ Set your password to complete."
+                    )
+                }
+                onVerified?.invoke()
+            } else {
+                _uiState.update {
+                    it.copy(
+                        isOtpLoading = false,
+                        otpError = "Invalid or expired OTP. Please check the SMS banner and re-enter."
+                    )
+                }
+            }
+        }
+    }
+
+    fun completeSignup(
+        name: String,
+        username: String,
+        phone: String,
+        password: String,
+        dob: String,
+        avatarRes: Int
+    ) {
+        viewModelScope.launch {
+            val result = repository.registerUser(
+                name = name,
+                usernameRaw = username,
+                phoneRaw = phone,
+                passwordRaw = password,
+                dob = dob,
+                avatarRes = avatarRes
+            )
+            result.onSuccess { newUser ->
+                val posts = repository.getAllPosts(newUser.id)
+                val groups = repository.getGroups()
+                val messages = repository.getMessagesForChat("dm_maya", newUser.id)
+                _uiState.update {
+                    it.copy(
+                        currentUser = newUser,
+                        isLoggedIn = true,
+                        currentScreen = Screen.FEED,
+                        posts = posts,
+                        groupChats = groups,
+                        chatMessages = messages,
+                        isOtpVerified = false,
+                        activeOtpNotification = null,
+                        snackbarMessage = "Welcome to FG TIME, ${newUser.name}! 🌿 Data saved securely in database."
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(otpError = err.message ?: "Account registration failed.")
+                }
+            }
+        }
+    }
+
+    fun loginWithCredentials(
+        identifier: String,
+        password: String,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = repository.loginUser(identifier, password)
+            result.onSuccess { loggedInUser ->
+                val posts = repository.getAllPosts(loggedInUser.id)
+                val groups = repository.getGroups()
+                val messages = repository.getMessagesForChat(_uiState.value.activeChatId, loggedInUser.id)
+                val notifs = repository.getNotifications(loggedInUser.id)
+
+                _uiState.update {
+                    it.copy(
+                        currentUser = loggedInUser,
+                        isLoggedIn = true,
+                        currentScreen = Screen.FEED,
+                        posts = posts,
+                        groupChats = groups,
+                        chatMessages = messages,
+                        notifications = notifs,
+                        snackbarMessage = if (it.language == Language.HINDI) "FG TIME में आपका स्वागत है, ${loggedInUser.name}! 🌿" else "Welcome back, ${loggedInUser.name}! 🌿"
+                    )
+                }
+            }.onFailure { err ->
+                onError(err.message ?: "Login failed. Check your credentials.")
+            }
+        }
+    }
+
+    fun requestPasswordResetOtp(phone: String, onCodeReady: ((String) -> Unit)? = null) {
+        if (!SecurityUtils.isValidPhone(phone)) {
+            _uiState.update { it.copy(otpError = "Please enter a valid registered phone number.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isOtpLoading = true, otpError = null) }
+            val (success, result) = repository.requestOtp(phone, "RESET_PASSWORD")
+            if (success) {
+                val notificationText = "🌿 FG TIME PASSWORD RESET\nVerification OTP: $result\nValid for 5 minutes. Enter this code to set your new password."
+                _uiState.update {
+                    it.copy(
+                        isOtpLoading = false,
+                        activeOtpNotification = notificationText,
+                        otpTargetPhone = SecurityUtils.normalizePhone(phone),
+                        otpPurpose = "RESET_PASSWORD",
+                        snackbarMessage = "Password reset OTP sent to $phone 📲"
+                    )
+                }
+                onCodeReady?.invoke(result)
+            } else {
+                _uiState.update {
+                    it.copy(isOtpLoading = false, otpError = result)
+                }
+            }
+        }
+    }
+
+    fun verifyAndResetPassword(
+        phone: String,
+        otpCode: String,
+        newPassword: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val success = repository.resetPasswordWithOtp(phone, otpCode, newPassword)
+            if (success) {
+                _uiState.update {
+                    it.copy(
+                        activeOtpNotification = null,
+                        snackbarMessage = "Password successfully reset! 🔒 You can now log in."
+                    )
+                }
+                onSuccess()
+            } else {
+                onError("Invalid or expired OTP. Password was not changed.")
+            }
+        }
+    }
+
+    fun changePasswordInSettings(
+        oldPassword: String,
+        newPassword: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val success = repository.changePassword(_uiState.value.currentUser.id, oldPassword, newPassword)
+            if (success) {
+                _uiState.update { it.copy(snackbarMessage = "Password changed successfully! 🔐") }
+                onSuccess()
+            } else {
+                onError("Current password incorrect. Please verify and try again.")
+            }
+        }
+    }
+
+    fun clearOtpNotification() {
+        _uiState.update { it.copy(activeOtpNotification = null, otpError = null) }
     }
 
     fun logout() {
@@ -389,57 +474,151 @@ class FGTimeViewModel : ViewModel() {
             it.copy(
                 isLoggedIn = false,
                 currentScreen = Screen.WELCOME_AUTH,
-                snackbarMessage = if (it.language == Language.HINDI) "आप लॉग आउट हो चुके हैं" else "Logged out successfully"
+                isOtpVerified = false,
+                activeOtpNotification = null,
+                snackbarMessage = if (it.language == Language.HINDI) "आप सफलतापूर्वक लॉग आउट हो चुके हैं" else "Logged out safely. Your database data is preserved."
             )
         }
     }
 
-    fun toggleLikePost(postId: String) {
-        _uiState.update { state ->
-            val updatedPosts = state.posts.map { post ->
-                if (post.id == postId) {
-                    val wasLiked = post.isLiked
-                    post.copy(
-                        isLiked = !wasLiked,
-                        likesCount = if (wasLiked) post.likesCount - 1 else post.likesCount + 1
-                    )
-                } else post
-            }
-            state.copy(posts = updatedPosts)
-        }
-    }
+    // ==========================================
+    // POSTS & FEED (CREATE, EDIT, DELETE, LIKE, SAVE)
+    // ==========================================
 
-    fun toggleSavePost(postId: String) {
-        _uiState.update { state ->
-            val updatedPosts = state.posts.map { post ->
-                if (post.id == postId) post.copy(isSaved = !post.isSaved) else post
-            }
-            val isNowSaved = updatedPosts.find { it.id == postId }?.isSaved == true
-            state.copy(
-                posts = updatedPosts,
-                snackbarMessage = if (isNowSaved) "Saved to your Bookmarks 🔖" else "Removed from Bookmarks"
+    fun createNewPost(
+        content: String,
+        tagsStr: String,
+        imageRes: Int,
+        mediaType: String = "PHOTO",
+        location: String = "FG TIME Loft"
+    ) {
+        viewModelScope.launch {
+            val newPost = repository.createPost(
+                currentUserId = _uiState.value.currentUser.id,
+                author = _uiState.value.currentUser,
+                content = content,
+                imageRes = imageRes,
+                mediaType = mediaType,
+                tags = tagsStr,
+                location = location
             )
+            val updatedUser = _uiState.value.currentUser.copy(
+                postsCount = _uiState.value.currentUser.postsCount + 1
+            )
+            _uiState.update {
+                it.copy(
+                    posts = listOf(newPost) + it.posts,
+                    currentUser = updatedUser,
+                    currentScreen = Screen.FEED,
+                    snackbarMessage = "Post published to community feed! 🌿"
+                )
+            }
         }
     }
 
     fun editPost(postId: String, newContent: String) {
-        _uiState.update { state ->
-            val updated = state.posts.map {
-                if (it.id == postId) it.copy(content = newContent) else it
+        viewModelScope.launch {
+            val ok = repository.editPost(postId, newContent)
+            if (ok) {
+                _uiState.update { state ->
+                    val updated = state.posts.map {
+                        if (it.id == postId) it.copy(content = newContent) else it
+                    }
+                    state.copy(posts = updated, snackbarMessage = "Post updated in database! ✏️")
+                }
             }
-            state.copy(posts = updated, snackbarMessage = "Post updated successfully! ✏️")
         }
     }
 
     fun deletePost(postId: String) {
-        _uiState.update { state ->
-            val updated = state.posts.filterNot { it.id == postId }
-            state.copy(
-                posts = updated,
-                currentUser = state.currentUser.copy(postsCount = (state.currentUser.postsCount - 1).coerceAtLeast(0)),
-                snackbarMessage = "Post deleted from feed 🗑️"
-            )
+        viewModelScope.launch {
+            val ok = repository.deletePost(postId, _uiState.value.currentUser.id)
+            if (ok) {
+                val updatedUser = _uiState.value.currentUser.copy(
+                    postsCount = (_uiState.value.currentUser.postsCount - 1).coerceAtLeast(0)
+                )
+                _uiState.update { state ->
+                    val updated = state.posts.filterNot { it.id == postId }
+                    state.copy(
+                        posts = updated,
+                        currentUser = updatedUser,
+                        snackbarMessage = "Post deleted from feed & database 🗑️"
+                    )
+                }
+            }
         }
+    }
+
+    fun toggleLikePost(postId: String) {
+        viewModelScope.launch {
+            val (isLiked, newLikes) = repository.toggleLike(_uiState.value.currentUser.id, postId)
+            _uiState.update { state ->
+                val updatedPosts = state.posts.map { post ->
+                    if (post.id == postId) {
+                        post.copy(isLiked = isLiked, likesCount = newLikes)
+                    } else post
+                }
+                state.copy(posts = updatedPosts)
+            }
+        }
+    }
+
+    fun toggleSavePost(postId: String) {
+        viewModelScope.launch {
+            val isSaved = repository.toggleSave(_uiState.value.currentUser.id, postId)
+            _uiState.update { state ->
+                val updatedPosts = state.posts.map { post ->
+                    if (post.id == postId) post.copy(isSaved = isSaved) else post
+                }
+                state.copy(
+                    posts = updatedPosts,
+                    snackbarMessage = if (isSaved) "Saved to your Bookmarks 🔖" else "Removed from Bookmarks"
+                )
+            }
+        }
+    }
+
+    fun loadComments(postId: String) {
+        viewModelScope.launch {
+            val comments = repository.getComments(postId)
+            _uiState.update {
+                it.copy(
+                    commentsByPostId = it.commentsByPostId + (postId to comments),
+                    activePostCommentsPostId = postId
+                )
+            }
+        }
+    }
+
+    fun addCommentToPost(postId: String, text: String) {
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            val newComment = repository.addComment(postId, _uiState.value.currentUser, text)
+            _uiState.update { state ->
+                val currentList = state.commentsByPostId[postId] ?: emptyList()
+                val updatedMap = state.commentsByPostId + (postId to (currentList + newComment))
+                val updatedPosts = state.posts.map {
+                    if (it.id == postId) it.copy(commentsCount = it.commentsCount + 1) else it
+                }
+                state.copy(commentsByPostId = updatedMap, posts = updatedPosts)
+            }
+        }
+    }
+
+    fun openStory(index: Int) {
+        _uiState.update { it.copy(activeStoryIndex = index, currentScreen = Screen.STORY_VIEWER) }
+    }
+
+    fun openCommentsFor(postId: String) {
+        loadComments(postId)
+    }
+
+    fun closeComments() {
+        closeCommentsSheet()
+    }
+
+    fun addComment(postId: String, text: String) {
+        addCommentToPost(postId, text)
     }
 
     fun reportPost(postId: String, reason: String) {
@@ -460,141 +639,175 @@ class FGTimeViewModel : ViewModel() {
             state.copy(
                 posts = updatedPosts,
                 adminReports = listOf(newReport) + state.adminReports,
-                snackbarMessage = "Report submitted. Thank you for keeping FG TIME safe! 🛡️"
+                snackbarMessage = "Report submitted to FG TIME safety team 🛡️"
             )
         }
     }
 
-    fun openCommentsFor(postId: String) {
-        _uiState.update { it.copy(activePostCommentsPostId = postId) }
-    }
-
-    fun closeComments() {
+    fun closeCommentsSheet() {
         _uiState.update { it.copy(activePostCommentsPostId = null) }
     }
 
-    fun addComment(postId: String, text: String) {
-        if (text.isBlank()) return
-        val newComment = PostComment(
-            id = "c_${System.currentTimeMillis()}",
-            postId = postId,
-            authorName = _uiState.value.currentUser.name,
-            authorUsername = _uiState.value.currentUser.username,
-            authorAvatarResId = _uiState.value.currentUser.avatarResId,
-            commentText = text,
-            timeAgo = "Just now",
-            likesCount = 0
-        )
-        _uiState.update { state ->
-            val existing = state.commentsByPostId[postId] ?: emptyList()
-            val updatedMap = state.commentsByPostId.toMutableMap()
-            updatedMap[postId] = listOf(newComment) + existing
-            val updatedPosts = state.posts.map {
-                if (it.id == postId) it.copy(commentsCount = it.commentsCount + 1) else it
+    // ==========================================
+    // MESSAGING & GROUPS
+    // ==========================================
+
+    fun selectChat(
+        chatId: String,
+        title: String,
+        avatarRes: Int,
+        isOnline: Boolean,
+        recipientId: String,
+        isGroup: Boolean = false
+    ) {
+        viewModelScope.launch {
+            val messages = repository.getMessagesForChat(chatId, _uiState.value.currentUser.id)
+            _uiState.update {
+                it.copy(
+                    activeChatId = chatId,
+                    activeChatTitle = title,
+                    activeChatAvatar = avatarRes,
+                    activeChatIsOnline = isOnline,
+                    activeChatRecipientId = recipientId,
+                    activeChatIsGroup = isGroup,
+                    chatMessages = messages
+                )
             }
-            state.copy(
-                commentsByPostId = updatedMap,
-                posts = updatedPosts,
-                snackbarMessage = if (state.language == Language.HINDI) "टिप्पणी पोस्ट की गई! 💬" else "Comment posted! 💬"
+        }
+    }
+
+    fun sendChatMessage(text: String, isVoiceNote: Boolean = false, voiceDuration: Int = 0) {
+        if (text.isBlank() && !isVoiceNote) return
+        val currentChatId = _uiState.value.activeChatId
+        val sender = _uiState.value.currentUser
+        val recipientId = _uiState.value.activeChatRecipientId
+
+        viewModelScope.launch {
+            val sentMsg = repository.sendMessage(
+                chatId = currentChatId,
+                sender = sender,
+                receiverId = recipientId,
+                text = text,
+                isVoiceNote = isVoiceNote,
+                voiceDuration = voiceDuration
+            )
+            _uiState.update {
+                it.copy(chatMessages = it.chatMessages + sentMsg)
+            }
+
+            // Auto-reply simulation for contacts if 1-on-1
+            if (!currentChatId.startsWith("grp_") && recipientId != "u_owner_muksidul") {
+                delay(1200)
+                val replyText = when {
+                    text.contains("hello", ignoreCase = true) || text.contains("hey", ignoreCase = true) ->
+                        "Hey ${sender.name}! Loving the new FG TIME updates 🌿"
+                    text.contains("video", ignoreCase = true) || text.contains("remix", ignoreCase = true) ->
+                        "The video trimming and remix tools in the studio work really well!"
+                    isVoiceNote -> "Received your voice note! Loud and clear 🎧"
+                    else -> "Thanks for reaching out! Spreading positive green vibes 🌱✨"
+                }
+                val autoMsg = repository.sendMessage(
+                    chatId = currentChatId,
+                    sender = UserProfile(id = recipientId, name = _uiState.value.activeChatTitle, username = "contact", avatarResId = _uiState.value.activeChatAvatar),
+                    receiverId = sender.id,
+                    text = replyText
+                )
+                if (_uiState.value.activeChatId == currentChatId) {
+                    _uiState.update { it.copy(chatMessages = it.chatMessages + autoMsg) }
+                }
+            }
+        }
+    }
+
+    fun createGroupChat(name: String, initialMembers: Int = 3) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            val newGrp = repository.createGroup(name, _uiState.value.currentUser, initialMembers)
+            val allGroups = repository.getGroups()
+            _uiState.update {
+                it.copy(
+                    groupChats = allGroups,
+                    snackbarMessage = "Group '${newGrp.name}' created! 🌿"
+                )
+            }
+            selectChat(
+                chatId = newGrp.id,
+                title = newGrp.name,
+                avatarRes = newGrp.iconResId,
+                isOnline = true,
+                recipientId = newGrp.id,
+                isGroup = true
             )
         }
     }
 
-    fun createNewPost(content: String, tagsStr: String, @DrawableRes imageRes: Int, mentionsStr: String = "") {
-        if (content.isBlank()) return
-        val tags = tagsStr.split(" ").filter { it.startsWith("#") && it.length > 1 }
-        val mentions = mentionsStr.split(" ").filter { it.startsWith("@") && it.length > 1 }
-        val newPost = Post(
-            id = "p_${System.currentTimeMillis()}",
-            author = _uiState.value.currentUser,
-            content = content,
-            imageResId = imageRes,
-            mediaList = listOf(imageRes, R.drawable.fgtime_banner),
-            tags = if (tags.isNotEmpty()) tags else listOf("#FGTime", "#Growth"),
-            mentions = mentions,
-            likesCount = 1,
-            commentsCount = 0,
-            isLiked = false,
-            isSaved = false,
-            timeAgo = "Just now",
-            location = "FG Creative Space"
-        )
-        _uiState.update { state ->
-            state.copy(
-                posts = listOf(newPost) + state.posts,
-                currentScreen = Screen.FEED,
-                currentUser = state.currentUser.copy(postsCount = state.currentUser.postsCount + 1),
-                snackbarMessage = if (state.language == Language.HINDI) "पोस्ट सफलतापूर्वक प्रकाशित हुई! 🌿" else "Post published to feed! 🌿"
-            )
-        }
-    }
+    // ==========================================
+    // SOCIAL & PROFILE
+    // ==========================================
 
-    fun toggleFollowUser(userId: String) {
-        _uiState.update { state ->
-            val updatedUsers = state.searchUsers.map { user ->
-                if (user.id == userId) {
-                    val newFollowing = !user.isFollowing
-                    user.copy(
-                        isFollowing = newFollowing,
-                        followers = if (newFollowing) user.followers + 1 else user.followers - 1
+    fun toggleFollowUser(targetUserId: String) {
+        viewModelScope.launch {
+            val isNowFollowing = repository.toggleFollow(_uiState.value.currentUser.id, targetUserId)
+            val updatedUsers = _uiState.value.searchUsers.map {
+                if (it.id == targetUserId) {
+                    it.copy(
+                        isFollowing = isNowFollowing,
+                        followers = if (isNowFollowing) it.followers + 1 else (it.followers - 1).coerceAtLeast(0)
                     )
-                } else user
+                } else it
             }
-            state.copy(
-                searchUsers = updatedUsers,
-                snackbarMessage = if (state.language == Language.HINDI) "फ़ॉलो स्थिति अपडेट हुई" else "Follow state updated"
+            val updatedMe = _uiState.value.currentUser.copy(
+                following = if (isNowFollowing) _uiState.value.currentUser.following + 1 else (_uiState.value.currentUser.following - 1).coerceAtLeast(0)
             )
+            _uiState.update {
+                it.copy(
+                    searchUsers = updatedUsers,
+                    currentUser = updatedMe,
+                    snackbarMessage = if (isNowFollowing) "Following user 🌿" else "Unfollowed user"
+                )
+            }
         }
     }
 
-    fun openStory(index: Int) {
-        _uiState.update {
-            it.copy(
-                activeStoryIndex = index,
-                currentScreen = Screen.STORY_VIEWER
-            )
-        }
-    }
-
-    fun nextStory() {
-        val nextIdx = _uiState.value.activeStoryIndex + 1
-        if (nextIdx < _uiState.value.stories.size) {
-            _uiState.update { it.copy(activeStoryIndex = nextIdx) }
-        } else {
-            navigateTo(Screen.FEED)
-        }
-    }
-
-    fun prevStory() {
-        val prevIdx = _uiState.value.activeStoryIndex - 1
-        if (prevIdx >= 0) {
-            _uiState.update { it.copy(activeStoryIndex = prevIdx) }
-        }
-    }
-
-    fun toggleLikeReel(reelId: String) {
-        _uiState.update { state ->
-            val updatedReels = state.reels.map { reel ->
-                if (reel.id == reelId) {
-                    val wasLiked = reel.isLiked
-                    reel.copy(
-                        isLiked = !wasLiked,
-                        likesCount = if (wasLiked) reel.likesCount - 1 else reel.likesCount + 1
+    fun updateProfile(name: String, bio: String, avatarRes: Int, isPrivate: Boolean) {
+        viewModelScope.launch {
+            val ok = repository.updateUserProfile(_uiState.value.currentUser.id, name, bio, avatarRes, isPrivate)
+            if (ok) {
+                val updated = _uiState.value.currentUser.copy(
+                    name = name.trim(),
+                    bio = bio.trim(),
+                    avatarResId = avatarRes,
+                    isPrivate = isPrivate
+                )
+                _uiState.update {
+                    it.copy(
+                        currentUser = updated,
+                        snackbarMessage = "Profile updated in database! ✨"
                     )
-                } else reel
+                }
             }
-            state.copy(reels = updatedReels)
         }
     }
 
-    fun toggleSaveReel(reelId: String) {
-        _uiState.update { state ->
-            val updatedReels = state.reels.map { reel ->
-                if (reel.id == reelId) reel.copy(isSaved = !reel.isSaved) else reel
+    fun searchUsersAndPosts(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+        viewModelScope.launch {
+            val results = if (query.isBlank()) {
+                _uiState.value.searchUsers
+            } else {
+                repository.searchUsers(query, _uiState.value.currentUser.id)
             }
-            state.copy(reels = updatedReels)
+            _uiState.update { it.copy(searchUsers = results) }
         }
     }
+
+    fun setSearchFilter(filter: String) {
+        _uiState.update { it.copy(activeSearchFilter = filter) }
+    }
+
+    // ==========================================
+    // REMIX STUDIO & VIDEO EDITING
+    // ==========================================
 
     fun selectRemixTrack(trackId: String) {
         _uiState.update { it.copy(selectedRemixTrackId = trackId) }
@@ -604,29 +817,49 @@ class FGTimeViewModel : ViewModel() {
         _uiState.update { it.copy(isStudioPlaying = !it.isStudioPlaying) }
     }
 
-    fun updateStudioTrim(start: Float, end: Float) {
-        _uiState.update { it.copy(studioTrimStartSec = start, studioTrimEndSec = end) }
+    fun setStudioTrim(startSec: Float, endSec: Float) {
+        _uiState.update { it.copy(studioTrimStartSec = startSec, studioTrimEndSec = endSec) }
     }
 
-    fun setStudioVolume(vol: Float) {
-        _uiState.update { it.copy(studioVolume = vol) }
+    fun setStudioVolume(volume: Float) {
+        _uiState.update { it.copy(studioVolume = volume.coerceIn(0f, 1f)) }
+    }
+
+    fun exportRemixVideoAndPublish(caption: String, videoRes: Int) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(studioExportProgress = 10) }
+            delay(500)
+            _uiState.update { it.copy(studioExportProgress = 50) }
+            delay(500)
+            _uiState.update { it.copy(studioExportProgress = 100) }
+            delay(300)
+
+            val track = _uiState.value.remixTracks.find { it.id == _uiState.value.selectedRemixTrackId }
+            val tags = "#FGTime #RemixStudio #${track?.genre?.replace(" ", "") ?: "Music"}"
+            createNewPost(
+                content = if (caption.isNotBlank()) caption else "New video remix created in FG Remix Studio 🎬🎵 (${track?.title})",
+                tagsStr = tags,
+                imageRes = videoRes,
+                mediaType = "VIDEO",
+                location = "FG Remix Studio"
+            )
+            _uiState.update {
+                it.copy(
+                    studioExportProgress = null,
+                    currentScreen = Screen.FEED,
+                    snackbarMessage = "Video remix published to feed! 🎬🌿"
+                )
+            }
+        }
     }
 
     fun exportRemix() {
         viewModelScope.launch {
-            _uiState.update { it.copy(studioExportProgress = 10, studioExportSuccessMessage = null) }
-            delay(500)
-            _uiState.update { it.copy(studioExportProgress = 45) }
-            delay(500)
-            _uiState.update { it.copy(studioExportProgress = 85) }
+            _uiState.update { it.copy(studioExportProgress = 15) }
             delay(400)
-            _uiState.update {
-                val track = it.remixTracks.find { t -> t.id == it.selectedRemixTrackId }?.title ?: "Original Track"
-                it.copy(
-                    studioExportProgress = 100,
-                    studioExportSuccessMessage = "Remix Exported Successfully! 🎬 Track: $track (Length: ${(it.studioTrimEndSec - it.studioTrimStartSec).toInt()}s)"
-                )
-            }
+            _uiState.update { it.copy(studioExportProgress = 60) }
+            delay(500)
+            _uiState.update { it.copy(studioExportProgress = 100, studioExportSuccessMessage = "Video rendered with selected audio track! You can post it to Feed or Reels.") }
         }
     }
 
@@ -634,95 +867,36 @@ class FGTimeViewModel : ViewModel() {
         _uiState.update { it.copy(studioExportProgress = null, studioExportSuccessMessage = null) }
     }
 
-    fun sendChatMessage(text: String, isVoice: Boolean = false, durationSec: Int = 0) {
-        if (text.isBlank() && !isVoice) return
-        val myMsg = ChatMessage(
-            id = "m_${System.currentTimeMillis()}",
-            text = if (isVoice) "Voice message (${durationSec}s) 🎙️" else text,
-            isMe = true,
-            senderName = _uiState.value.currentUser.name,
-            timestamp = "Just now",
-            isVoiceNote = isVoice,
-            voiceDurationSec = durationSec
-        )
-        _uiState.update { it.copy(chatMessages = it.chatMessages + myMsg) }
+    // ==========================================
+    // CALL SIMULATION, AI, NAVIGATION & THEME
+    // ==========================================
 
-        // Creative interactive response
-        viewModelScope.launch {
-            delay(1200)
-            val replies = listOf(
-                "Loved your post! Such a vibrant aesthetic 🌿",
-                "Have you tried the new audio track in the Remix Studio?",
-                "FG TIME community is growing so fast today! ✨",
-                "Awesome! Let's collaborate on a creative reel soon 🎧",
-                "Founder Muksidul just dropped a new update, check the announcement!"
-            )
-            val replyMsg = ChatMessage(
-                id = "m_reply_${System.currentTimeMillis()}",
-                text = replies.random(),
-                isMe = false,
-                senderName = "Maya Green",
-                timestamp = "Just now"
-            )
-            _uiState.update { it.copy(chatMessages = it.chatMessages + replyMsg) }
-        }
+    fun startCall(contactName: String, contactAvatarRes: Int, type: CallType) {
+        initiateCall(contactName, contactAvatarRes, type)
     }
 
-    // CALLING LOGIC
-    fun startCall(contactName: String, @DrawableRes avatarResId: Int, type: CallType) {
-        val newCall = CallRecord(
+    fun initiateCall(contactName: String, contactAvatarRes: Int, type: CallType) {
+        val record = CallRecord(
             id = "call_${System.currentTimeMillis()}",
             contactName = contactName,
-            contactAvatarResId = avatarResId,
+            contactAvatarResId = contactAvatarRes,
             type = type,
             isIncoming = false,
             timestamp = "Just now"
         )
         _uiState.update {
             it.copy(
-                activeCall = newCall,
+                activeCall = record,
                 callState = CallState.OUTGOING,
-                callDurationSeconds = 0,
-                isCallMuted = false,
-                currentScreen = Screen.CALL_SCREEN
+                currentScreen = Screen.CALL_SCREEN,
+                callDurationSeconds = 0
             )
         }
-
-        // Simulate contact picking up after 2.5s
         viewModelScope.launch {
             delay(2500)
             if (_uiState.value.callState == CallState.OUTGOING) {
                 _uiState.update { it.copy(callState = CallState.CONNECTED) }
                 startCallTimer()
-            }
-        }
-    }
-
-    fun acceptIncomingCall() {
-        _uiState.update { it.copy(callState = CallState.CONNECTED) }
-        startCallTimer()
-    }
-
-    fun endCall() {
-        callTimerJob?.cancel()
-        val finishedCall = _uiState.value.activeCall?.copy(
-            durationSec = _uiState.value.callDurationSeconds
-        )
-        _uiState.update { state ->
-            state.copy(
-                callState = CallState.ENDED,
-                callHistory = if (finishedCall != null) listOf(finishedCall) + state.callHistory else state.callHistory,
-                snackbarMessage = "Call ended (${state.callDurationSeconds}s)"
-            )
-        }
-        viewModelScope.launch {
-            delay(800)
-            _uiState.update {
-                it.copy(
-                    activeCall = null,
-                    callState = CallState.IDLE,
-                    currentScreen = Screen.DIRECT_MESSAGES
-                )
             }
         }
     }
@@ -737,6 +911,23 @@ class FGTimeViewModel : ViewModel() {
         }
     }
 
+    fun endCall() {
+        callTimerJob?.cancel()
+        val duration = _uiState.value.callDurationSeconds
+        val active = _uiState.value.activeCall
+        if (active != null) {
+            val record = active.copy(durationSec = duration)
+            _uiState.update {
+                it.copy(
+                    callHistory = listOf(record) + it.callHistory,
+                    callState = CallState.ENDED,
+                    activeCall = null
+                )
+            }
+        }
+        _uiState.update { it.copy(currentScreen = Screen.DIRECT_MESSAGES) }
+    }
+
     fun toggleCallMute() {
         _uiState.update { it.copy(isCallMuted = !it.isCallMuted) }
     }
@@ -745,68 +936,29 @@ class FGTimeViewModel : ViewModel() {
         _uiState.update { it.copy(isCallCameraEnabled = !it.isCallCameraEnabled) }
     }
 
-    fun flipCallCamera() {
+    fun switchCallCamera() {
         _uiState.update { it.copy(isCallFrontCamera = !it.isCallFrontCamera) }
     }
 
-    // AI ASSISTANT LOGIC
-    fun sendAIMessage(userPrompt: String) {
-        if (userPrompt.isBlank()) return
-        val userMsg = AIChatMessage("u_${System.currentTimeMillis()}", userPrompt, true, "Just now")
-        _uiState.update {
-            it.copy(
-                aiMessages = it.aiMessages + userMsg,
-                isAILoading = true
-            )
-        }
+    fun sendAIMessage(prompt: String) {
+        if (prompt.isBlank()) return
+        val userMsg = AIChatMessage("ai_u_${System.currentTimeMillis()}", prompt, true, "Just now")
+        _uiState.update { it.copy(aiMessages = it.aiMessages + userMsg, isAILoading = true) }
 
         viewModelScope.launch {
-            delay(1200)
-            val response = when {
-                userPrompt.contains("caption", ignoreCase = true) ->
-                    "Here are 3 aesthetic captions for FG TIME:\n\n1. \"Rooted in passion, branching into new creations. 🌿✨\"\n2. \"Catching the green hour golden glow. 🌱📷\"\n3. \"Where ideas breathe and growth begins. #FGTime #CreatorVibes\""
-                userPrompt.contains("hashtag", ignoreCase = true) || userPrompt.contains("tag", ignoreCase = true) ->
-                    "Recommended high-reach tags for FG TIME:\n#FGTime #GreenCommunity #OrganicGrowth #CreativeLoft #SustainableVibes #EcoArt #DailyCreator"
-                userPrompt.contains("muksidul", ignoreCase = true) || userPrompt.contains("founder", ignoreCase = true) ->
-                    "Muksidul is the Creator and Founder of FG TIME! His vision is to give creators an authentic, positive social platform with built-in remix studios and calling tools."
-                else ->
-                    "Great creative concept! On FG TIME, posts with vibrant visuals and storytelling captions get 2.4x more engagement. Would you like me to draft a caption or suggest a music soundtrack for this?"
+            delay(1000)
+            val responseText = when {
+                prompt.contains("caption", ignoreCase = true) ->
+                    "Here's a poetic caption for FG TIME: 'Finding stillness in the green, growing at the pace of nature. 🌿✨ #FGTime #GreenLiving'"
+                prompt.contains("hashtag", ignoreCase = true) ->
+                    "#FGTime #GreenGrowth #EcoCreators #PeacefulLiving #CommunityVibes #CreativeSoul"
+                prompt.contains("remix", ignoreCase = true) ->
+                    "In the Remix Studio, combine the 82 BPM Lo-Fi stems with your nature videos for max aesthetic engagement!"
+                else -> "Great prompt! FG TIME is all about mindful creation. Try using the green leaf filter with your latest clip."
             }
-            val aiMsg = AIChatMessage("ai_${System.currentTimeMillis()}", response, false, "Just now")
-            _uiState.update {
-                it.copy(
-                    aiMessages = it.aiMessages + aiMsg,
-                    isAILoading = false
-                )
-            }
+            val aiMsg = AIChatMessage("ai_b_${System.currentTimeMillis()}", responseText, false, "Just now")
+            _uiState.update { it.copy(aiMessages = it.aiMessages + aiMsg, isAILoading = false) }
         }
-    }
-
-    // ADMIN MODERATION LOGIC
-    fun resolveReport(reportId: String) {
-        _uiState.update { state ->
-            val updated = state.adminReports.map {
-                if (it.id == reportId) it.copy(status = "RESOLVED") else it
-            }
-            state.copy(adminReports = updated, snackbarMessage = "Report marked as RESOLVED by admin 🛡️")
-        }
-    }
-
-    fun dismissReport(reportId: String) {
-        _uiState.update { state ->
-            val updated = state.adminReports.map {
-                if (it.id == reportId) it.copy(status = "DISMISSED") else it
-            }
-            state.copy(adminReports = updated, snackbarMessage = "Report dismissed 🛡️")
-        }
-    }
-
-    fun updateSearchQuery(query: String) {
-        _uiState.update { it.copy(searchQuery = query) }
-    }
-
-    fun setSearchFilter(filter: String) {
-        _uiState.update { it.copy(activeSearchFilter = filter) }
     }
 
     fun markNotificationRead(id: String) {
@@ -822,6 +974,101 @@ class FGTimeViewModel : ViewModel() {
         _uiState.update { state ->
             val updated = state.notifications.map { it.copy(isRead = true) }
             state.copy(notifications = updated)
+        }
+    }
+
+    // Admin report actions
+    fun dismissReport(id: String) {
+        _uiState.update { state ->
+            state.copy(adminReports = state.adminReports.map { if (it.id == id) it.copy(status = "DISMISSED") else it })
+        }
+    }
+
+    fun resolveReport(id: String) {
+        _uiState.update { state ->
+            state.copy(adminReports = state.adminReports.map { if (it.id == id) it.copy(status = "RESOLVED") else it })
+        }
+    }
+
+    // Call Screen actions
+    fun acceptIncomingCall() {
+        _uiState.update { it.copy(callState = CallState.CONNECTED) }
+        startCallTimer()
+    }
+
+    fun flipCallCamera() {
+        switchCallCamera()
+    }
+
+    // Explore / Search action
+    fun updateSearchQuery(query: String) {
+        searchUsersAndPosts(query)
+    }
+
+    // Profile performLogin action
+    fun performLogin(name: String, username: String, contact: String, dob: String = "2001-08-15") {
+        loginWithCredentials(username.ifBlank { contact }, "FGTime@123") {
+            completeSignup(name, username, contact, "FGTime@123", dob, R.drawable.fgtime_creator)
+        }
+    }
+
+    // Reels actions
+    fun toggleLikeReel(reelId: String) {
+        _uiState.update { state ->
+            val updated = state.reels.map { reel ->
+                if (reel.id == reelId) {
+                    val liked = !reel.isLiked
+                    reel.copy(isLiked = liked, likesCount = if (liked) reel.likesCount + 1 else reel.likesCount - 1)
+                } else reel
+            }
+            state.copy(reels = updated)
+        }
+    }
+
+    fun toggleSaveReel(reelId: String) {
+        _uiState.update { state ->
+            val updated = state.reels.map { reel ->
+                if (reel.id == reelId) reel.copy(isSaved = !reel.isSaved) else reel
+            }
+            state.copy(reels = updated)
+        }
+    }
+
+    // Remix Studio action
+    fun updateStudioTrim(start: Float, end: Float) {
+        setStudioTrim(start, end)
+    }
+
+    // Story Viewer actions
+    fun nextStory() {
+        val next = _uiState.value.activeStoryIndex + 1
+        if (next < _uiState.value.stories.size) {
+            _uiState.update { it.copy(activeStoryIndex = next) }
+        } else {
+            _uiState.update { it.copy(currentScreen = Screen.FEED) }
+        }
+    }
+
+    fun prevStory() {
+        val prev = _uiState.value.activeStoryIndex - 1
+        if (prev >= 0) {
+            _uiState.update { it.copy(activeStoryIndex = prev) }
+        }
+    }
+
+    fun toggleDarkMode() {
+        _uiState.update { it.copy(isDarkMode = !it.isDarkMode) }
+    }
+
+    fun toggleLanguage() {
+        _uiState.update {
+            it.copy(language = if (it.language == Language.ENGLISH) Language.HINDI else Language.ENGLISH)
+        }
+    }
+
+    fun navigateTo(screen: Screen) {
+        _uiState.update {
+            it.copy(previousScreen = it.currentScreen, currentScreen = screen)
         }
     }
 
