@@ -70,7 +70,7 @@ class FGTimeRepository(context: Context) {
         cursor.use {
             if (it.moveToFirst()) {
                 val realCode = it.getString(it.getColumnIndexOrThrow("otp_code"))
-                if (realCode == cleanCode) {
+                if (SecurityUtils.secureCodeEquals(realCode, cleanCode)) {
                     isValid = true
                     val sessionId = it.getString(it.getColumnIndexOrThrow("id"))
                     val wDb = dbHelper.writableDatabase
@@ -347,6 +347,8 @@ class FGTimeRepository(context: Context) {
                 }
                 val tagsStr = it.getString(it.getColumnIndexOrThrow("tags")) ?: ""
                 val location = it.getString(it.getColumnIndexOrThrow("location")) ?: "FG Green Loft"
+                val mediaUri = it.getString(it.getColumnIndexOrThrow("media_uri"))
+                val mediaType = it.getString(it.getColumnIndexOrThrow("media_type")) ?: "PHOTO"
                 val likesCount = it.getInt(it.getColumnIndexOrThrow("likes_count"))
                 val commentsCount = it.getInt(it.getColumnIndexOrThrow("comments_count"))
                 val createdAt = it.getLong(it.getColumnIndexOrThrow("created_at"))
@@ -370,6 +372,8 @@ class FGTimeRepository(context: Context) {
                         author = author,
                         content = content,
                         imageResId = imageRes,
+                        mediaUri = mediaUri,
+                        mediaType = mediaType,
                         tags = if (tagsStr.isNotBlank()) tagsStr.split(" ") else emptyList(),
                         likesCount = likesCount,
                         commentsCount = commentsCount,
@@ -389,7 +393,8 @@ class FGTimeRepository(context: Context) {
         author: UserProfile,
         content: String,
         imageRes: Int,
-        mediaType: String,
+        mediaUri: String? = null,
+        mediaType: String = "PHOTO",
         tags: String,
         location: String
     ): Post = withContext(Dispatchers.IO) {
@@ -405,6 +410,7 @@ class FGTimeRepository(context: Context) {
             put("author_avatar_res", author.avatarResId)
             put("content", content.trim())
             put("image_res", imageRes)
+            put("media_uri", mediaUri)
             put("media_type", mediaType)
             put("tags", tags.trim())
             put("location", location.trim())
@@ -420,6 +426,8 @@ class FGTimeRepository(context: Context) {
             author = author,
             content = content,
             imageResId = imageRes,
+            mediaUri = mediaUri,
+            mediaType = mediaType,
             tags = if (tags.isNotBlank()) tags.split(" ") else emptyList(),
             likesCount = 0,
             commentsCount = 0,
@@ -430,10 +438,10 @@ class FGTimeRepository(context: Context) {
         )
     }
 
-    suspend fun editPost(postId: String, newContent: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun editPost(postId: String, userId: String, newContent: String): Boolean = withContext(Dispatchers.IO) {
         val db = dbHelper.writableDatabase
         val cv = ContentValues().apply { put("content", newContent.trim()) }
-        val rows = db.update(FGTimeDatabaseHelper.TABLE_POSTS, cv, "id = ?", arrayOf(postId))
+        val rows = db.update(FGTimeDatabaseHelper.TABLE_POSTS, cv, "id = ? AND user_id = ?", arrayOf(postId, userId))
         rows > 0
     }
 
@@ -552,13 +560,23 @@ class FGTimeRepository(context: Context) {
 
     suspend fun getMessagesForChat(chatId: String, currentUserId: String): List<ChatMessage> = withContext(Dispatchers.IO) {
         val db = dbHelper.readableDatabase
-        val cursor = db.query(
-            FGTimeDatabaseHelper.TABLE_MESSAGES,
-            null,
-            "chat_id = ?",
-            arrayOf(chatId),
-            null, null, "created_at ASC"
-        )
+        val cursor = if (chatId.startsWith("grp_")) {
+            db.query(
+                FGTimeDatabaseHelper.TABLE_MESSAGES,
+                null,
+                "chat_id = ?",
+                arrayOf(chatId),
+                null, null, "created_at ASC"
+            )
+        } else {
+            db.query(
+                FGTimeDatabaseHelper.TABLE_MESSAGES,
+                null,
+                "chat_id = ? AND (sender_id = ? OR receiver_id = ?)",
+                arrayOf(chatId, currentUserId, currentUserId),
+                null, null, "created_at ASC"
+            )
+        }
         val list = mutableListOf<ChatMessage>()
         cursor.use {
             while (it.moveToNext()) {
@@ -711,6 +729,63 @@ class FGTimeRepository(context: Context) {
             }
         }
         list
+    }
+
+    // ==========================================
+    // 5. STORY & STATUS VIEWERS OPERATIONS
+    // ==========================================
+
+    suspend fun getStoryViewers(storyId: String): List<StoryViewer> = withContext(Dispatchers.IO) {
+        val db = dbHelper.readableDatabase
+        val cursor = db.query(
+            FGTimeDatabaseHelper.TABLE_STORY_VIEWERS,
+            null,
+            "story_id = ?",
+            arrayOf(storyId),
+            null, null, "viewed_at DESC"
+        )
+        val list = mutableListOf<StoryViewer>()
+        cursor.use {
+            while (it.moveToNext()) {
+                val viewerId = it.getString(it.getColumnIndexOrThrow("viewer_id"))
+                val viewerName = it.getString(it.getColumnIndexOrThrow("viewer_name"))
+                val viewerUsername = it.getString(it.getColumnIndexOrThrow("viewer_username"))
+                val avatarRes = it.getInt(it.getColumnIndexOrThrow("viewer_avatar_res")).let { res ->
+                    if (res == 0) R.drawable.fgtime_leaf_logo else res
+                }
+                val viewedAt = it.getLong(it.getColumnIndexOrThrow("viewed_at"))
+                val viewedAtAgo = formatTimeAgo(viewedAt)
+
+                val user = UserProfile(
+                    id = viewerId,
+                    name = viewerName,
+                    username = viewerUsername,
+                    avatarResId = avatarRes
+                )
+                list.add(StoryViewer(user = user, viewedAtAgo = viewedAtAgo))
+            }
+        }
+        list
+    }
+
+    suspend fun recordStoryView(storyId: String, viewer: UserProfile): Boolean = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val now = System.currentTimeMillis()
+        val cv = ContentValues().apply {
+            put("story_id", storyId)
+            put("viewer_id", viewer.id)
+            put("viewer_name", viewer.name)
+            put("viewer_username", viewer.username)
+            put("viewer_avatar_res", viewer.avatarResId)
+            put("viewed_at", now)
+        }
+        val inserted = db.insertWithOnConflict(
+            FGTimeDatabaseHelper.TABLE_STORY_VIEWERS,
+            null,
+            cv,
+            android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE
+        )
+        inserted != -1L
     }
 
     // ==========================================

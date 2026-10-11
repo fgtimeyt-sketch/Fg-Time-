@@ -26,6 +26,7 @@ class FGTimeDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABAS
         const val TABLE_FOLLOWS = "follows"
         const val TABLE_BLOCKED = "blocked_users"
         const val TABLE_NOTIFICATIONS = "notifications"
+        const val TABLE_STORY_VIEWERS = "story_viewers"
 
         @Volatile
         private var instance: FGTimeDatabaseHelper? = null
@@ -180,11 +181,33 @@ class FGTimeDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABAS
             )
         """.trimIndent())
 
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_STORY_VIEWERS (
+                story_id TEXT NOT NULL,
+                viewer_id TEXT NOT NULL,
+                viewer_name TEXT NOT NULL,
+                viewer_username TEXT NOT NULL,
+                viewer_avatar_res INTEGER,
+                viewed_at INTEGER NOT NULL,
+                PRIMARY KEY (story_id, viewer_id)
+            )
+        """.trimIndent())
+
         seedInitialData(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Migration strategy if schema changes
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_STORY_VIEWERS (
+                story_id TEXT NOT NULL,
+                viewer_id TEXT NOT NULL,
+                viewer_name TEXT NOT NULL,
+                viewer_username TEXT NOT NULL,
+                viewer_avatar_res INTEGER,
+                viewed_at INTEGER NOT NULL,
+                PRIMARY KEY (story_id, viewer_id)
+            )
+        """.trimIndent())
     }
 
     private fun seedInitialData(db: SQLiteDatabase) {
@@ -408,5 +431,26 @@ class FGTimeDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABAS
             put("following_id", "u_owner_muksidul")
         }
         db.insert(TABLE_FOLLOWS, null, f2)
+
+        // Seed initial status viewers for owner's story
+        val v1 = ContentValues().apply {
+            put("story_id", "s_owner")
+            put("viewer_id", "u_maya")
+            put("viewer_name", "Maya Green")
+            put("viewer_username", "mayagreen")
+            put("viewer_avatar_res", R.drawable.fgtime_creator)
+            put("viewed_at", now - 600000L)
+        }
+        db.insert(TABLE_STORY_VIEWERS, null, v1)
+
+        val v2 = ContentValues().apply {
+            put("story_id", "s_owner")
+            put("viewer_id", "u_alex")
+            put("viewer_name", "Alex Rivers")
+            put("viewer_username", "alexrivers")
+            put("viewer_avatar_res", R.drawable.fgtime_reel)
+            put("viewed_at", now - 1800000L)
+        }
+        db.insert(TABLE_STORY_VIEWERS, null, v2)
     }
 }

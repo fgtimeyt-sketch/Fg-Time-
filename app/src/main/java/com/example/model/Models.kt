@@ -64,13 +64,20 @@ data class Post(
     val location: String = "FG Green Oasis"
 )
 
+data class StoryViewer(
+    val user: UserProfile,
+    val viewedAtAgo: String = "Just now"
+)
+
 data class StoryItem(
     val id: String,
     val author: UserProfile,
     @DrawableRes val imageResId: Int,
     val caption: String = "Growth in motion 🌿",
     val timeAgo: String = "3h ago",
-    val isViewed: Boolean = false
+    val isViewed: Boolean = false,
+    val mediaUri: String? = null,
+    val viewers: List<StoryViewer> = emptyList()
 )
 
 data class ReelItem(
